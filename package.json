@@ -1,0 +1,20 @@
+{
+  "name": "outbreak-deck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "2D top-down multiplayer survival card game (Phaser 3).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "generate:assets": "node scripts/generate-assets.mjs",
+    "check:map": "node scripts/check-map.mjs"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}
