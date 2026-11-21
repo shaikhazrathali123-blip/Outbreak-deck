@@ -1,32 +1,31 @@
 import Phaser from 'phaser';
+import '@fontsource/rajdhani/500.css';
+import '@fontsource/rajdhani/600.css';
+import '@fontsource/rajdhani/700.css';
 import BootScene from './scenes/BootScene.js';
 import MenuScene from './scenes/MenuScene.js';
-import GameScene from './scenes/GameScene.js';
-import UIScene from './scenes/UIScene.js';
 import SideScene from './scenes/SideScene.js';
 import SideUIScene from './scenes/SideUIScene.js';
-
-const params = new URLSearchParams(window.location.search);
 
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
-  backgroundColor: '#05070a',
+  backgroundColor: '#04050a',
   scale: {
     mode: Phaser.Scale.RESIZE,
     width: window.innerWidth,
     height: window.innerHeight,
   },
-  physics: {
-    default: 'arcade',
-    arcade: { debug: params.has('debug') }, // open with ?debug to see hitboxes
-  },
   input: { activePointers: 3 }, // multi-touch for the joystick + future buttons
   fps: { target: 60 },
-  // Game scenes must come before their UI scenes so the HUD draws on top.
-  // Side view is the default; ?view=top opens the older top-down map.
-  scene: [BootScene, MenuScene, SideScene, SideUIScene, GameScene, UIScene],
+  // The game scene must come before its UI scene so the HUD draws on top.
+  scene: [BootScene, MenuScene, SideScene, SideUIScene],
 };
+
+// The building art is painted once at startup, so wait for the font first.
+const fontsReady = Promise.all(
+  ['500 16px Rajdhani', '600 16px Rajdhani', '700 16px Rajdhani'].map((f) => document.fonts.load(f)),
+).catch(() => {});
 
 // WebGL crashes on a 0x0 canvas, which happens if the page starts hidden or
 // mid-rotation on a phone. Wait until the window has a real size.
@@ -40,4 +39,4 @@ function boot() {
   const game = new Phaser.Game(config);
   if (import.meta.env.DEV) window.__game = game; // handy for debugging in the console
 }
-boot();
+fontsReady.finally(boot);

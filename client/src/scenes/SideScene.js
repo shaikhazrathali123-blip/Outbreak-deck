@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { ROOMS as ROOM_INFO, PLAYER_SPEED, PLAYER_COLORS, MAX_PLAYERS } from '../../../shared/constants.js';
 import { WIDTH, ROOM_HEIGHT, ORIGIN_X, WORLD, FLOORS, GROUND, ROOMS, LADDERS, SPAWN } from '../side/facility.js';
-import { drawFacility } from '../side/inkArt.js';
+import { drawFacility, drawSky, drawSkyline } from '../side/inkArt.js';
 import { createSurvivor } from '../side/SideCharacter.js';
+import { FONT } from '../ui/HUD.js';
 
 const CLIMB_SPEED = 140;
 const LADDER_REACH = 26; // how close to a ladder you must be to grab it
+const FLOOR_NAMES = ['Basement', 'Ground floor', 'Floor 2', 'Floor 3'];
+const hex = (h) => Phaser.Display.Color.HexStringToColor(h).color;
 
 /**
  * Side-view cutaway of the Helix facility. Walk left/right on each floor,
@@ -19,7 +22,11 @@ export default class SideScene extends Phaser.Scene {
 
   create() {
     this.art = drawFacility(this);
+    drawSky(this);
+    drawSkyline(this);
     createSurvivor(this);
+
+    this.createBackdrop();
     this.add.image(0, 0, 'facility').setOrigin(0).setDepth(0);
 
     this.rooms = ROOMS.map((r) => {
@@ -29,6 +36,7 @@ export default class SideScene extends Phaser.Scene {
         ...r,
         name: info.name,
         color: info.color,
+        floorName: FLOOR_NAMES[r.floor],
         rect: new Phaser.Geom.Rectangle(ORIGIN_X + r.x0, fy - ROOM_HEIGHT, r.x1 - r.x0, ROOM_HEIGHT),
       };
     });
@@ -49,18 +57,18 @@ export default class SideScene extends Phaser.Scene {
 
     // --- room darkness (above the player so dark rooms hide whoever is inside)
     this.shades = this.rooms.map((r) =>
-      this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, 0x000000, 0.85).setOrigin(0).setDepth(20),
+      this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, 0x020308, 0.84).setOrigin(0).setDepth(20),
     );
     this.currentRoom = undefined;
 
     // --- camera
     const cam = this.cameras.main;
     cam.setBounds(0, 0, WORLD.width, WORLD.height);
-    cam.startFollow(this.player, true, 0.1, 0.12);
+    cam.startFollow(this.player, true, 0.08, 0.1);
     cam.setFollowOffset(0, 120); // keep the room (not the floor below) in view
-    cam.setBackgroundColor('#04050a');
-    cam.fadeIn(700, 0, 0, 0);
-    if (this.game.renderer.type === Phaser.WEBGL && cam.postFX) cam.postFX.addVignette(0.5, 0.5, 0.88, 0.45);
+    cam.setBackgroundColor('#03040a');
+    cam.fadeIn(800, 0, 0, 0);
+    this.setupPostFX(cam);
     this.applyZoom();
     this.scale.on('resize', this.applyZoom, this);
 
@@ -76,6 +84,27 @@ export default class SideScene extends Phaser.Scene {
     });
   }
 
+  /** Soft bloom on desktop (skipped on phones for speed; ?fx=high / ?fx=low to force) + vignette. */
+  setupPostFX(cam) {
+    if (this.game.renderer.type !== Phaser.WEBGL || !cam.postFX) return;
+    const fx = new URLSearchParams(window.location.search).get('fx');
+    const mobile = this.sys.game.device.input.touch && !this.sys.game.device.os.desktop;
+    if (fx === 'high' || (fx !== 'low' && !mobile)) cam.postFX.addBloom(0xffffff, 1, 1, 0.8, 0.32, 4);
+    cam.postFX.addVignette(0.5, 0.5, 0.95, 0.38);
+  }
+
+  applyZoom() {
+    const { height } = this.scale;
+    this.cameras.main.setZoom(Phaser.Math.Clamp(height / 470, 0.8, 2.2));
+  }
+
+  /** Sky and distant city move slower than the building, which gives depth. */
+  createBackdrop() {
+    this.add.image(0, 0, 'sky').setOrigin(0).setScrollFactor(0.15).setDepth(-3);
+    // tuned so the city's base meets the horizon when you're on the ground floor
+    this.add.image(0, FLOORS[GROUND].y - 616, 'skyline').setOrigin(0).setScrollFactor(0.45, 0.75).setDepth(-2);
+  }
+
   /** Test helper: idle survivors in every player colour, spread across the Central Hall. */
   spawnCrowd(count) {
     const hall = this.roomsById.hall;
@@ -83,12 +112,13 @@ export default class SideScene extends Phaser.Scene {
     this.crowd = [];
     for (let i = 1; i < count; i++) {
       const key = `survivor-${i}`;
-      createSurvivor(this, key, PLAYER_COLORS[i % PLAYER_COLORS.length]);
+      const color = PLAYER_COLORS[i % PLAYER_COLORS.length];
+      createSurvivor(this, key, color);
       const x = hall.rect.x + 40 + ((hall.rect.width - 80) * i) / count;
       const s = this.add.sprite(x, fy, key, 'idle0').setOrigin(0.5, 1).setDepth(9).setFlipX(i % 2 === 0);
       s.play({ key: `${key}-idle`, startFrame: i % 2 });
       const tag = this.add
-        .text(x, fy - 92, `P${i + 1}`, { fontFamily: '"Consolas", monospace', fontSize: '10px', fontStyle: 'bold', color: PLAYER_COLORS[i % PLAYER_COLORS.length], resolution: 3 })
+        .text(x, fy - 94, `P${i + 1}`, { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color, resolution: 3 })
         .setOrigin(0.5)
         .setDepth(9);
       this.crowd.push(s, tag);
@@ -97,51 +127,54 @@ export default class SideScene extends Phaser.Scene {
     this.player.setPosition(hall.rect.x + 40, fy);
   }
 
-  applyZoom() {
-    const { height } = this.scale;
-    this.cameras.main.setZoom(Phaser.Math.Clamp(height / 440, 0.8, 2.4));
+  // ---------------------------------------------------------------- lights
+  floorBelow(y) {
+    return FLOORS.reduce((best, f) => (f.y >= y - 2 && (best === null || f.y < best.y) ? f : best), null);
   }
 
-  // ---------------------------------------------------------------- lights
   createLights() {
-    // ceiling lamp light cones
-    if (!this.textures.exists('cone')) {
-      const t = this.textures.createCanvas('cone', 256, 256);
-      const c = t.getContext();
-      const g = c.createLinearGradient(0, 0, 0, 256);
-      g.addColorStop(0, 'rgba(255,255,255,0.55)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      c.fillStyle = g;
-      c.beginPath();
-      c.moveTo(112, 0);
-      c.lineTo(144, 0);
-      c.lineTo(256, 256);
-      c.lineTo(0, 256);
-      c.closePath();
-      c.fill();
-      t.refresh();
-    }
     this.lights = [];
     const add = (img, intensity, mode) => this.lights.push({ img, intensity, mode, phase: Math.random() * 6, until: 0 });
+
     for (const lamp of this.art.lamps) {
-      const img = this.add
-        .image(lamp.x, lamp.y, 'cone')
+      const tint = hex(lamp.color);
+      // wash on the back wall under each LED strip
+      const wash = this.add
+        .image(lamp.x, lamp.y, 'wash')
         .setOrigin(0.5, 0)
-        .setDisplaySize(230, ROOM_HEIGHT - 32)
-        .setTint(Phaser.Display.Color.HexStringToColor(lamp.color).color)
+        .setDisplaySize(300, ROOM_HEIGHT - 26)
+        .setTint(tint)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(15);
-      add(img, 0.32, lamp.mode);
+      add(wash, 0.26, lamp.mode);
+      // light pool on the floor
+      const fy = this.floorBelow(lamp.y).y;
+      const pool = this.add.image(lamp.x, fy - 1, 'glow').setScale(1.15, 0.1).setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(15);
+      add(pool, 0.3, lamp.mode);
     }
+
     for (const g of this.art.glows) {
+      const tint = hex(g.color);
       const img = this.add
         .image(g.x, g.y, 'glow')
         .setScale((g.radius * 2) / 256)
-        .setTint(Phaser.Display.Color.HexStringToColor(g.color).color)
+        .setTint(tint)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(14);
       add(img, g.intensity, g.mode);
+      // reflection on the polished floor
+      const floor = this.floorBelow(g.y);
+      if (floor && floor.y - g.y < 230) {
+        const refl = this.add
+          .image(g.x, floor.y + 1, 'glow')
+          .setScale((g.radius * 1.6) / 256, (g.radius * 0.16) / 256)
+          .setTint(tint)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(14);
+        add(refl, g.intensity * 0.55, g.mode);
+      }
     }
+
     // blinking server LEDs
     this.leds = [];
     for (const r of this.art.leds) {
@@ -149,83 +182,87 @@ export default class SideScene extends Phaser.Scene {
         for (let x = r.x; x < r.x + r.w; x += 8) {
           if (Math.random() < 0.5) continue;
           this.leds.push(
-            this.add.rectangle(x + 2, y + 5, 3, 3, Phaser.Utils.Array.GetRandom([0x3ee67a, 0x3e8bff, 0xe6b23e])).setOrigin(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(5),
+            this.add
+              .rectangle(x + 2, y + 5, 3, 3, Phaser.Utils.Array.GetRandom([0x3ee67a, 0x3e8bff, 0xe6b23e]))
+              .setOrigin(0)
+              .setBlendMode(Phaser.BlendModes.ADD)
+              .setDepth(5),
           );
         }
       }
     }
     this.time.addEvent({ delay: 130, loop: true, callback: () => this.leds.forEach((l) => Math.random() < 0.15 && l.setVisible(!l.visible)) });
+
     // holograms
     for (const h of this.art.holos) {
-      const img = this.add.image(h.x, h.y - 40, 'holo').setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.75).setDepth(16);
-      this.tweens.add({ targets: img, y: h.y - 46, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const img = this.add.image(h.x, h.y - 42, 'holo').setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8).setDepth(16);
+      this.tweens.add({ targets: img, y: h.y - 48, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       this.tweens.add({ targets: img, scaleX: 0.7, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     }
+
     // rooftop neon sign + antenna beacon
     const sign = this.add
-      .text(this.art.roofSign.x, this.art.roofSign.y, 'HELIX', { fontFamily: '"Consolas", monospace', fontSize: '54px', fontStyle: 'bold', color: '#7ffff0' })
+      .text(this.art.roofSign.x, this.art.roofSign.y, 'H E L I X', { fontFamily: FONT, fontSize: '58px', fontStyle: '700', color: '#9ffff4' })
       .setOrigin(0.5)
-      .setShadow(0, 0, '#2fd2c0', 24, true, true)
+      .setShadow(0, 0, '#2fd2c0', 26, true, true)
       .setDepth(3);
     add(sign, 1, 'flicker');
-    const beacon = this.add.image(this.art.antenna.x, this.art.antenna.y, 'glow').setScale(0.35).setTint(0xff3b4a).setBlendMode(Phaser.BlendModes.ADD).setDepth(3);
-    this.tweens.add({ targets: beacon, alpha: 0.1, duration: 700, yoyo: true, repeat: -1 });
+    this.add
+      .text(this.art.roofSign.x, this.art.roofSign.y + 40, 'RESEARCH  FACILITY', { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: '#7fb8b0' })
+      .setOrigin(0.5)
+      .setDepth(3);
+    const beacon = this.add.image(this.art.antenna.x, this.art.antenna.y, 'glow').setScale(0.32).setTint(0xff3b4a).setBlendMode(Phaser.BlendModes.ADD).setDepth(3);
+    this.tweens.add({ targets: beacon, alpha: 0.1, duration: 800, yoyo: true, repeat: -1 });
   }
 
+  /** Clean plates over each doorway naming the rooms on either side. */
   createSigns() {
     for (const s of this.art.signs) {
-      const t = this.add
-        .text(s.x, s.y, s.text, { fontFamily: '"Consolas", monospace', fontSize: '9px', fontStyle: 'bold', color: '#ffd08a', resolution: 3 })
-        .setOrigin(0.5)
-        .setShadow(0, 0, '#ff9a2a', 6, false, true)
-        .setDepth(6);
-      this.add.rectangle(s.x, s.y, t.width + 10, t.height + 4, 0x070a10, 0.9).setStrokeStyle(1, 0xff9a2a, 0.8).setDepth(5.9);
+      const style = { fontFamily: FONT, fontSize: '10px', fontStyle: '600', color: '#e9e4d6', resolution: 3 };
+      const left = this.add.text(s.x - 10, s.y, `‹  ${s.left}`, style).setOrigin(1, 0.5).setDepth(6).setAlpha(0.85);
+      const right = this.add.text(s.x + 10, s.y, `${s.right}  ›`, style).setOrigin(0, 0.5).setDepth(6).setAlpha(0.85);
+      const w = left.width + right.width + 34;
+      const g = this.add.graphics().setDepth(5.9);
+      g.fillStyle(0x07080c, 0.92).fillRoundedRect(s.x - w / 2, s.y - 9, w, 18, 4);
+      g.lineStyle(1, 0xe9e4d6, 0.22).strokeRoundedRect(s.x - w / 2, s.y - 9, w, 18, 4);
+      g.fillStyle(0xffb04a, 1).fillRect(s.x - 0.75, s.y - 5, 1.5, 10);
+      left.setX(s.x - 8);
+      right.setX(s.x + 8);
     }
   }
 
   createWeather() {
-    if (!this.textures.exists('rain')) {
-      const g = this.make.graphics({ x: 0, y: 0 }, false);
-      g.fillStyle(0xbfd8ff, 0.5).fillRect(0, 0, 1.5, 16);
-      g.generateTexture('rain', 2, 16);
-      g.destroy();
-    }
     const b = this.art.building;
     this.add
       .particles(0, -20, 'rain', {
         x: { min: 0, max: WORLD.width },
-        speedY: { min: 520, max: 680 },
-        speedX: -60,
-        lifespan: 2200,
-        quantity: 3,
-        frequency: 16,
-        alpha: { min: 0.25, max: 0.6 },
+        speedY: { min: 560, max: 700 },
+        speedX: -50,
+        lifespan: 2400,
+        quantity: 2,
+        frequency: 18,
+        alpha: { min: 0.2, max: 0.5 },
         deathZone: [
           { type: 'onEnter', source: new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height) },
           { type: 'onEnter', source: new Phaser.Geom.Rectangle(0, FLOORS[GROUND].y, WORLD.width, WORLD.height) },
         ],
       })
       .setDepth(25);
-    // lightning: flash the sky behind the building
-    const gy = FLOORS[GROUND].y;
-    this.sky = [
-      [0, 0, b.x, gy],
-      [b.x + b.width, 0, WORLD.width - b.x - b.width, gy],
-      [b.x, 0, b.width, b.y],
-    ].map(([x, y, w, h]) => this.add.rectangle(x, y, w, h, 0xc8d8ff, 1).setOrigin(0).setAlpha(0).setDepth(0.5).setBlendMode(Phaser.BlendModes.ADD));
+    // lightning lights up the sky behind the building
+    const flash = this.add.rectangle(0, 0, WORLD.width, WORLD.height, 0xc8d8ff, 1).setOrigin(0).setAlpha(0).setScrollFactor(0.15).setDepth(-1).setBlendMode(Phaser.BlendModes.ADD);
     const strike = () => {
       this.tweens.chain({
-        targets: this.sky,
+        targets: flash,
         tweens: [
-          { alpha: 0.35, duration: 60 },
-          { alpha: 0.05, duration: 90 },
-          { alpha: 0.25, duration: 50 },
-          { alpha: 0, duration: 600 },
+          { alpha: 0.3, duration: 60 },
+          { alpha: 0.04, duration: 90 },
+          { alpha: 0.2, duration: 50 },
+          { alpha: 0, duration: 700 },
         ],
       });
-      this.time.delayedCall(Phaser.Math.Between(6000, 16000), strike);
+      this.time.delayedCall(Phaser.Math.Between(7000, 18000), strike);
     };
-    this.time.delayedCall(3000, strike);
+    this.time.delayedCall(3500, strike);
   }
 
   // ---------------------------------------------------------------- input
@@ -305,10 +342,10 @@ export default class SideScene extends Phaser.Scene {
   animateLights(time) {
     for (const l of this.lights) {
       let a = l.intensity;
-      if (l.mode === 'pulse') a *= 0.65 + 0.35 * Math.sin(time * 0.002 + l.phase);
+      if (l.mode === 'pulse') a *= 0.7 + 0.3 * Math.sin(time * 0.002 + l.phase);
       else if (l.mode === 'flicker') {
-        if (time > l.until && Math.random() < 0.006) l.until = time + 60 + Math.random() * 200;
-        a *= time < l.until ? 0.25 + Math.random() * 0.2 : 0.94 + Math.random() * 0.06;
+        if (time > l.until && Math.random() < 0.005) l.until = time + 60 + Math.random() * 180;
+        a *= time < l.until ? 0.3 + Math.random() * 0.2 : 0.95 + Math.random() * 0.05;
       } else if (l.mode === 'broken') {
         if (time > l.until && Math.random() < 0.012) l.until = time + 40 + Math.random() * 160;
         a *= time < l.until ? 0.8 : 0.06;
@@ -345,8 +382,8 @@ export default class SideScene extends Phaser.Scene {
       }
     }
     this.rooms.forEach((r, i) => {
-      const target = r === room ? 0 : neighbours.has(r) ? 0.55 : 0.86;
-      this.tweens.add({ targets: this.shades[i], fillAlpha: target, duration: 450, ease: 'Sine.out' });
+      const target = r === room ? 0 : neighbours.has(r) ? 0.5 : 0.84;
+      this.tweens.add({ targets: this.shades[i], fillAlpha: target, duration: 500, ease: 'Sine.out' });
     });
     this.events.emit('room-changed', room);
   }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import HUD, { FONT } from '../ui/HUD.js';
+import HUD, { FONT, UI } from '../ui/HUD.js';
 import Joystick from '../ui/Joystick.js';
 import SideMap from '../side/SideMap.js';
 
@@ -14,16 +14,21 @@ export default class SideUIScene extends Phaser.Scene {
   }
 
   create() {
-    this.createGrain();
+    this.grain = this.add
+      .tileSprite(0, 0, this.scale.width, this.scale.height, 'grain')
+      .setOrigin(0)
+      .setAlpha(0.025)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
     this.hud = new HUD(this);
-    this.hud.hint.setText(
-      this.sys.game.device.input.touch ? 'DRAG LEFT/RIGHT TO WALK - UP/DOWN AT A LADDER TO CLIMB' : 'A/D WALK - W/S CLIMB LADDERS - M MAP',
-    );
     this.map = new SideMap(this, this.gameScene);
     this.joystick = new Joystick(this);
+
+    // ladder prompt: a small pill above the bottom edge
+    this.promptBg = this.add.graphics().setVisible(false);
     this.prompt = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#ffd27a', backgroundColor: '#0b0b0ecc', padding: { x: 8, y: 4 } })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffd27a' })
       .setOrigin(0.5)
+      .setLetterSpacing(3)
       .setVisible(false);
 
     const onRoom = (room) => {
@@ -36,7 +41,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.events.on('map-open', (open) => {
       this.hud.setVisible(!open);
       this.joystick.setEnabled(!open);
-      this.prompt.setVisible(false);
+      this.showPrompt(null);
     });
 
     const onResize = (size) => {
@@ -53,24 +58,23 @@ export default class SideUIScene extends Phaser.Scene {
     });
   }
 
-  createGrain() {
-    if (!this.textures.exists('grain')) {
-      const t = this.textures.createCanvas('grain', 128, 128);
-      const c = t.getContext();
-      const img = c.createImageData(128, 128);
-      for (let i = 0; i < img.data.length; i += 4) {
-        const v = Math.random() * 255;
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-        img.data[i + 3] = 255;
-      }
-      c.putImageData(img, 0, 0);
-      t.refresh();
+  showPrompt(text) {
+    if (!text) {
+      this.prompt.setVisible(false);
+      this.promptBg.setVisible(false);
+      return;
     }
-    this.grain = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, 'grain')
-      .setOrigin(0)
-      .setAlpha(0.06)
-      .setBlendMode(Phaser.BlendModes.SCREEN);
+    if (this.prompt.text !== text || !this.prompt.visible) {
+      this.prompt.setText(text).setPosition(this.scale.width / 2, this.scale.height - 70).setVisible(true);
+      const b = this.prompt.getBounds();
+      this.promptBg
+        .clear()
+        .fillStyle(UI.panel, 0.85)
+        .fillRoundedRect(b.x - 18, b.y - 8, b.width + 36, b.height + 16, 16)
+        .lineStyle(1, 0xffb04a, 0.6)
+        .strokeRoundedRect(b.x - 18, b.y - 8, b.width + 36, b.height + 16, 16)
+        .setVisible(true);
+    }
   }
 
   update(time) {
@@ -84,10 +88,7 @@ export default class SideUIScene extends Phaser.Scene {
     if (ladder) {
       const up = ladder.lower === gs.state.floor;
       const touch = this.sys.game.device.input.touch;
-      this.prompt
-        .setText(up ? `${touch ? 'PUSH UP' : 'W'}  ▲  CLIMB UP` : `${touch ? 'PUSH DOWN' : 'S'}  ▼  CLIMB DOWN`)
-        .setPosition(this.scale.width / 2, this.scale.height - 64)
-        .setVisible(true);
-    } else this.prompt.setVisible(false);
+      this.showPrompt(up ? `▲  ${touch ? 'PUSH UP' : 'W'}  TO CLIMB` : `▼  ${touch ? 'PUSH DOWN' : 'S'}  TO CLIMB DOWN`);
+    } else this.showPrompt(null);
   }
 }

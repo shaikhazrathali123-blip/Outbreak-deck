@@ -1,5 +1,5 @@
 // "Ink & neon" art for the side-view facility, drawn in code onto one big canvas.
-// Bone-white hand-drawn linework and crosshatching on black, with neon only
+// Clean bone-white linework on deep blue-black, soft gradients, and neon only
 // where something glows (screens, tanks, signs, infection green).
 import { ROOMS as ROOM_INFO, DUEL_CHALLENGES } from '../../../shared/constants.js';
 import { WIDTH, ROOM_HEIGHT, DOOR_HEIGHT, ORIGIN_X, WORLD, FLOORS, GROUND, TOP, ROOMS, LADDERS, FURNITURE } from './facility.js';
@@ -19,28 +19,35 @@ function mulberry32(seed) {
   };
 }
 
-/** Hand-drawn pen helpers on a 2D canvas context. */
+/**
+ * Pen helpers on a 2D canvas context. Lines get a very slight hand-made wobble
+ * and hatching is kept faint, so the result reads clean rather than sketchy.
+ */
 export class Ink {
-  constructor(ctx, seed = 1) {
+  constructor(ctx, seed = 1, { wobble = 0.15, hatchScale = 0.3 } = {}) {
     this.c = ctx;
     this.rng = mulberry32(seed);
+    this.wobble = wobble;
+    this.hatchScale = hatchScale;
   }
-  jitter(a = 0.7) {
-    return (this.rng() - 0.5) * 2 * a;
+  jitter(a = 1) {
+    return (this.rng() - 0.5) * 2 * a * this.wobble;
   }
   line(x0, y0, x1, y1, w = 2, color = INK) {
     const c = this.c;
     const len = Math.hypot(x1 - x0, y1 - y0);
-    const n = Math.max(1, Math.round(len / 14));
+    const n = Math.max(1, Math.round(len / 24));
     c.beginPath();
-    c.moveTo(x0 + this.jitter(0.4), y0 + this.jitter(0.4));
+    c.moveTo(x0, y0);
     for (let i = 1; i <= n; i++) {
       const t = i / n;
-      c.lineTo(x0 + (x1 - x0) * t + this.jitter(), y0 + (y1 - y0) * t + this.jitter());
+      const j = i === n ? 0 : 1;
+      c.lineTo(x0 + (x1 - x0) * t + this.jitter() * j, y0 + (y1 - y0) * t + this.jitter() * j);
     }
-    c.lineWidth = w;
+    c.lineWidth = w * 0.85;
     c.strokeStyle = color;
     c.lineCap = 'round';
+    c.lineJoin = 'round';
     c.stroke();
   }
   rect(x, y, w, h, lw = 2, color = INK, fill = null) {
@@ -49,30 +56,31 @@ export class Ink {
       this.c.fillRect(x, y, w, h);
     }
     if (lw > 0) {
-      this.line(x, y, x + w, y, lw, color);
-      this.line(x + w, y, x + w, y + h, lw, color);
-      this.line(x + w, y + h, x, y + h, lw, color);
-      this.line(x, y + h, x, y, lw, color);
+      this.c.lineWidth = lw * 0.85;
+      this.c.strokeStyle = color;
+      this.c.lineJoin = 'round';
+      this.c.strokeRect(x, y, w, h);
     }
   }
-  /** Parallel pen strokes clipped to a rectangle. */
+  /** Faint parallel strokes clipped to a rectangle (used for texture and shade). */
   hatch(x, y, w, h, gap = 7, alpha = 0.14, angle = 1) {
+    const a = alpha * this.hatchScale;
+    if (a < 0.015) return;
     const c = this.c;
     c.save();
     c.beginPath();
     c.rect(x, y, w, h);
     c.clip();
     c.lineWidth = 1;
-    c.strokeStyle = inkA(alpha);
+    c.strokeStyle = inkA(a);
     c.beginPath();
-    for (let d = -h; d < w + h; d += gap) {
-      const j = this.jitter(1.2);
+    for (let d = -h; d < w + h; d += gap * 1.4) {
       if (angle > 0) {
-        c.moveTo(x + d + j, y + h);
-        c.lineTo(x + d + h + j, y);
+        c.moveTo(x + d, y + h);
+        c.lineTo(x + d + h, y);
       } else {
-        c.moveTo(x + d + j, y);
-        c.lineTo(x + d + h + j, y + h);
+        c.moveTo(x + d, y);
+        c.lineTo(x + d + h, y + h);
       }
     }
     c.stroke();
@@ -80,18 +88,17 @@ export class Ink {
   }
   cross(x, y, w, h, gap = 7, alpha = 0.12) {
     this.hatch(x, y, w, h, gap, alpha, 1);
-    this.hatch(x, y, w, h, gap, alpha, -1);
   }
   circle(x, y, r, lw = 2, color = INK, fill = null) {
     const c = this.c;
     c.beginPath();
-    c.arc(x + this.jitter(0.3), y + this.jitter(0.3), r, 0, Math.PI * 2);
+    c.arc(x, y, r, 0, Math.PI * 2);
     if (fill) {
       c.fillStyle = fill;
       c.fill();
     }
     if (lw > 0) {
-      c.lineWidth = lw;
+      c.lineWidth = lw * 0.85;
       c.strokeStyle = color;
       c.stroke();
     }
@@ -105,13 +112,15 @@ export class Ink {
     draw();
     c.restore();
   }
-  text(str, x, y, size, color = INK, align = 'left', weight = 'bold') {
+  text(str, x, y, size, color = INK, align = 'left', weight = '700', spacing = 1) {
     const c = this.c;
-    c.font = `${weight} ${size}px "Consolas", "Menlo", monospace`;
+    c.font = `${weight} ${Math.round(size * 1.15)}px "Rajdhani", "Segoe UI", sans-serif`;
+    if ('letterSpacing' in c) c.letterSpacing = `${spacing}px`;
     c.textAlign = align;
     c.textBaseline = 'middle';
     c.fillStyle = color;
     c.fillText(str, x, y);
+    if ('letterSpacing' in c) c.letterSpacing = '0px';
   }
 }
 
@@ -603,132 +612,156 @@ const F = {
 };
 
 // ------------------------------------------------------------- building
-function drawSky(k) {
-  const c = k.c;
-  const g = c.createLinearGradient(0, 0, 0, FLOORS[GROUND].y);
-  g.addColorStop(0, '#04050a');
-  g.addColorStop(1, '#0c1020');
-  c.fillStyle = g;
-  c.fillRect(0, 0, WORLD.width, FLOORS[GROUND].y);
-  for (let i = 0; i < 160; i++) {
-    c.fillStyle = inkA(0.2 + k.rng() * 0.6);
-    c.fillRect(k.rng() * WORLD.width, k.rng() * 700, 1.5, 1.5);
-  }
-  // moon with hatched shadow
-  const mx = WORLD.width - 320;
-  const my = 90;
-  k.neon('#e9e4d6', 30, () => k.circle(mx, my, 36, 2.5, INK, '#d8d4c8'));
-  c.save();
-  c.beginPath();
-  c.arc(mx, my, 35, 0, Math.PI * 2);
-  c.clip();
-  k.hatch(mx - 6, my - 40, 50, 80, 4, 0.6);
-  c.restore();
-  // distant hills
-  for (const [base, alpha, amp] of [[860, 0.5, 70], [980, 0.8, 50]]) {
-    c.beginPath();
-    c.moveTo(0, FLOORS[GROUND].y);
-    for (let x = 0; x <= WORLD.width; x += 40) c.lineTo(x, base - Math.sin(x / 210 + base) * amp - Math.sin(x / 67) * 12);
-    c.lineTo(WORLD.width, FLOORS[GROUND].y);
-    c.closePath();
-    c.fillStyle = `rgba(8,9,13,${alpha})`;
-    c.fill();
-  }
-  // dead trees and fence
-  for (const tx of [70, 160, WORLD.width - 110, WORLD.width - 200]) {
-    const ty = FLOORS[GROUND].y;
-    k.line(tx, ty, tx + 4, ty - 150, 4);
-    for (let b = 0; b < 5; b++) {
-      const by = ty - 60 - b * 20;
-      const dir = b % 2 ? 1 : -1;
-      k.line(tx + 2, by, tx + dir * (20 + k.rng() * 26), by - 20 - k.rng() * 20, 2);
-    }
-  }
-  for (let fx = 10; fx < WORLD.width; fx += 46) {
-    if (fx > X(-60) && fx < X(WIDTH + 60)) continue;
-    k.line(fx, FLOORS[GROUND].y, fx, FLOORS[GROUND].y - 44, 2, inkA(0.6));
-  }
-  k.line(0, FLOORS[GROUND].y - 36, X(-60), FLOORS[GROUND].y - 36, 1.5, inkA(0.5));
-  k.line(X(WIDTH + 60), FLOORS[GROUND].y - 36, WORLD.width, FLOORS[GROUND].y - 36, 1.5, inkA(0.5));
-}
+const FLOOR_LABEL = ['B1', 'G', '02', '03'];
+const EDGE = 'rgba(233,228,214,0.55)';
+const EDGE_SOFT = 'rgba(233,228,214,0.16)';
 
 function drawGround(k) {
   const c = k.c;
   const gy = FLOORS[GROUND].y;
-  c.fillStyle = '#09090b';
+  // low mist over the ground line
+  const mist = c.createLinearGradient(0, gy - 90, 0, gy);
+  mist.addColorStop(0, 'rgba(80,110,160,0)');
+  mist.addColorStop(1, 'rgba(80,110,160,0.10)');
+  c.fillStyle = mist;
+  c.fillRect(0, gy - 90, WORLD.width, 90);
+  // earth
+  const g = c.createLinearGradient(0, gy, 0, WORLD.height);
+  g.addColorStop(0, '#0b0c10');
+  g.addColorStop(1, '#040506');
+  c.fillStyle = g;
   c.fillRect(0, gy, WORLD.width, WORLD.height - gy);
-  k.hatch(0, gy, WORLD.width, WORLD.height - gy, 9, 0.09);
-  k.line(0, gy, WORLD.width, gy, 3);
-  for (let i = 0; i < 60; i++) k.circle(k.rng() * WORLD.width, gy + 60 + k.rng() * 220, 2 + k.rng() * 7, 1.5, inkA(0.35), '#0b0b0e');
-  // buried pipes with a leak of green ooze
-  for (const py of [gy + 150, gy + 200]) {
-    k.line(0, py, WORLD.width, py, 2, inkA(0.5));
-    k.line(0, py + 12, WORLD.width, py + 12, 2, inkA(0.5));
+  for (const [dy, a] of [[70, 0.07], [150, 0.05], [260, 0.04], [380, 0.03]]) k.line(0, gy + dy, WORLD.width, gy + dy, 1, inkA(a));
+  // buried service pipes
+  for (const py of [gy + 120, gy + 132]) {
+    c.fillStyle = 'rgba(233,228,214,0.08)';
+    c.fillRect(0, py, X(-60), 2);
+    c.fillRect(X(WIDTH + 60), py, WORLD.width, 2);
   }
-  k.neon('#3ee67a', 16, () => {
-    c.fillStyle = 'rgba(62,230,122,0.55)';
+  k.neon('#3ee67a', 18, () => {
+    c.fillStyle = 'rgba(62,230,122,0.45)';
     c.beginPath();
-    c.ellipse(X(WIDTH + 160), gy + 226, 50, 8, 0, 0, Math.PI * 2);
+    c.ellipse(X(WIDTH + 200), gy + 140, 46, 5, 0, 0, Math.PI * 2);
     c.fill();
   });
+  // ground line and a neat perimeter fence
+  c.fillStyle = 'rgba(233,228,214,0.6)';
+  c.fillRect(0, gy - 1, WORLD.width, 2);
+  for (let fx = 20; fx < WORLD.width; fx += 52) {
+    if (fx > X(-70) && fx < X(WIDTH + 70)) continue;
+    c.fillStyle = 'rgba(233,228,214,0.28)';
+    c.fillRect(fx, gy - 46, 2, 46);
+  }
+  c.fillStyle = 'rgba(233,228,214,0.18)';
+  c.fillRect(0, gy - 40, X(-70), 1);
+  c.fillRect(0, gy - 24, X(-70), 1);
+  c.fillRect(X(WIDTH + 70), gy - 40, WORLD.width, 1);
+  c.fillRect(X(WIDTH + 70), gy - 24, WORLD.width, 1);
 }
 
 function drawShell(k) {
+  const c = k.c;
   const top = FLOORS[TOP].y - ROOM_HEIGHT - SLAB;
   const bottom = FLOORS[0].y + SLAB;
-  // outer walls
   for (const wx of [X(-40), X(WIDTH)]) {
-    k.rect(wx, top, 40, bottom - top, 3, INK, '#0e0e12');
-    k.cross(wx + 2, top + 2, 36, bottom - top - 4, 6, 0.16);
+    const g = c.createLinearGradient(wx, 0, wx + 40, 0);
+    g.addColorStop(0, '#0e0f14');
+    g.addColorStop(1, '#08090c');
+    c.fillStyle = g;
+    c.fillRect(wx, top, 40, bottom - top);
+    c.fillStyle = EDGE;
+    c.fillRect(wx, top, 1.5, bottom - top);
+    c.fillRect(wx + 38.5, top, 1.5, bottom - top);
+    for (const f of FLOORS) {
+      c.fillStyle = 'rgba(0,0,0,0.6)';
+      c.fillRect(wx, f.y + SLAB / 2, 40, 1);
+    }
   }
-  // roof slab
-  k.rect(X(-40), top, WIDTH + 80, SLAB, 3, INK, '#060608');
-  k.cross(X(-38), top + 2, WIDTH + 76, SLAB - 4, 6, 0.14);
-  // parapet, water tank, AC units, antenna
-  k.line(X(-40), top - 24, X(WIDTH + 40), top - 24, 2);
-  for (let x = -40; x <= WIDTH + 40; x += 60) k.line(X(x), top - 24, X(x), top, 2);
-  k.rect(X(260), top - 100, 90, 60, 2, INK, '#0e0e12');
-  k.hatch(X(262), top - 98, 86, 56, 5, 0.25);
-  k.line(X(270), top - 40, X(270), top, 3);
-  k.line(X(340), top - 40, X(340), top, 3);
-  for (const ax of [1500, 1600]) k.rect(X(ax), top - 50, 70, 50, 2, INK, '#0e0e12');
-  k.line(X(1900), top, X(1900), top - 160, 3);
-  for (let i = 1; i < 5; i++) k.line(X(1900) - 20 + i * 3, top - i * 30, X(1900) + 20 - i * 3, top - i * 30, 1.5);
+  // roof slab, parapet rail and rooftop plant
+  c.fillStyle = '#0c0d11';
+  c.fillRect(X(-40), top, WIDTH + 80, SLAB);
+  c.fillStyle = 'rgba(255,255,255,0.4)';
+  c.fillRect(X(-40), top, WIDTH + 80, 1.5);
+  c.fillStyle = EDGE_SOFT;
+  c.fillRect(X(-40), top - 26, WIDTH + 80, 2);
+  for (let x = -40; x <= WIDTH + 40; x += 80) c.fillRect(X(x), top - 26, 2, 26);
+  const unit = (x, w, h) => {
+    c.fillStyle = '#0d0e12';
+    c.fillRect(X(x), top - h, w, h);
+    c.strokeStyle = EDGE;
+    c.lineWidth = 1.2;
+    c.strokeRect(X(x) + 0.5, top - h + 0.5, w - 1, h - 1);
+    for (let vx = X(x) + 8; vx < X(x) + w - 6; vx += 6) {
+      c.fillStyle = 'rgba(233,228,214,0.08)';
+      c.fillRect(vx, top - h + 8, 2, h - 16);
+    }
+  };
+  unit(240, 110, 64);
+  unit(1480, 80, 44);
+  unit(1580, 80, 44);
+  c.fillStyle = 'rgba(233,228,214,0.7)';
+  c.fillRect(X(1900) - 1, top - 170, 2.5, 170);
+  for (let i = 1; i < 5; i++) c.fillRect(X(1900) - 18 + i * 3, top - i * 32, 36 - i * 6, 1.5);
 }
 
 function drawRoom(k, room, out) {
+  const c = k.c;
   const fy = FLOORS[room.floor].y;
   const ty = fy - ROOM_HEIGHT;
   const x0 = X(room.x0);
   const w = room.x1 - room.x0;
   const info = roomInfo(room.id);
-  k.c.fillStyle = WALL;
-  k.c.fillRect(x0, ty, w, ROOM_HEIGHT);
-  // panel seams, wainscot rail, hatched lower wall
-  for (let sx = x0 + 90; sx < x0 + w - 20; sx += 90) k.line(sx, ty + 20, sx, fy - 72, 1, inkA(0.12));
-  k.line(x0, fy - 72, x0 + w, fy - 72, 2, inkA(0.5));
-  k.hatch(x0, fy - 70, w, 70, 8, 0.07);
-  // ceiling pipes
-  k.line(x0, ty + 14, x0 + w, ty + 14, 2, inkA(0.45));
-  k.line(x0, ty + 22, x0 + w, ty + 22, 2, inkA(0.45));
-  for (let bx = x0 + 40; bx < x0 + w; bx += 120) k.line(bx, ty, bx, ty + 24, 2, inkA(0.45));
-  // painted room name
-  k.text(info.name.toUpperCase(), x0 + 18, ty + 44, 13, info.color + 'aa');
-  // ceiling lamps
+
+  // back wall: soft vertical gradient, quiet panel seams
+  const wall = c.createLinearGradient(0, ty, 0, fy);
+  wall.addColorStop(0, '#13151c');
+  wall.addColorStop(1, '#090a0e');
+  c.fillStyle = wall;
+  c.fillRect(x0, ty, w, ROOM_HEIGHT);
+  for (let sx = x0 + 120; sx < x0 + w - 30; sx += 120) {
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    c.fillRect(sx, ty + 30, 1, ROOM_HEIGHT - 116);
+    c.fillStyle = 'rgba(255,255,255,0.035)';
+    c.fillRect(sx + 1, ty + 30, 1, ROOM_HEIGHT - 116);
+  }
+  // lower wall panel + rail
+  c.fillStyle = '#0b0c10';
+  c.fillRect(x0, fy - 84, w, 84);
+  c.fillStyle = 'rgba(233,228,214,0.14)';
+  c.fillRect(x0, fy - 85, w, 1.5);
+  // ceiling cove
+  c.fillStyle = '#07080b';
+  c.fillRect(x0, ty, w, 24);
+  c.fillStyle = 'rgba(233,228,214,0.16)';
+  c.fillRect(x0, ty + 24, w, 1);
+  // accent strip along the skirting, in the room colour
+  k.neon(info.color, 12, () => {
+    c.fillStyle = info.color;
+    c.globalAlpha = 0.85;
+    c.fillRect(x0, fy - 4, w, 2);
+    c.globalAlpha = 1;
+  });
+  // wayfinding label: floor + room name
+  c.fillStyle = info.color;
+  c.fillRect(x0 + 20, ty + 40, 3, 14);
+  k.text(`${FLOOR_LABEL[room.floor]}  ${info.name.toUpperCase()}`, x0 + 30, ty + 47.5, 11, 'rgba(233,228,214,0.42)', 'left', '600', 3);
+  // LED light strips
   const n = Math.max(1, Math.round(w / 230));
   for (let i = 0; i < n; i++) {
     const lx = x0 + (w / n) * (i + 0.5);
-    k.c.beginPath();
-    k.c.moveTo(lx - 20, ty + 30);
-    k.c.lineTo(lx + 20, ty + 30);
-    k.c.lineTo(lx + 12, ty + 22);
-    k.c.lineTo(lx - 12, ty + 22);
-    k.c.closePath();
-    k.c.fillStyle = '#1a1c22';
-    k.c.fill();
-    k.line(lx - 20, ty + 30, lx + 20, ty + 30, 2);
+    k.neon('#fff2dc', 16, () => {
+      c.fillStyle = '#fff6ea';
+      c.beginPath();
+      c.roundRect(lx - 44, ty + 20, 88, 4, 2);
+      c.fill();
+    });
     const roll = k.rng();
-    out.lamps.push({ x: lx, y: ty + 31, color: { curelab: '#c8fff4', research: '#c8fff4', reactor: '#ffd2a0', quarantine: '#ffc8c8', server: '#cfe0ff' }[room.id] ?? '#fff1d6', mode: roll < 0.72 ? 'steady' : roll < 0.9 ? 'flicker' : 'broken' });
+    out.lamps.push({
+      x: lx,
+      y: ty + 24,
+      color: { curelab: '#c8fff4', research: '#c8fff4', reactor: '#ffd2a0', quarantine: '#ffc8c8', server: '#cfe0ff' }[room.id] ?? '#fff1d6',
+      mode: roll < 0.8 ? 'steady' : roll < 0.94 ? 'flicker' : 'broken',
+    });
   }
   for (const [type, fx, opts] of FURNITURE[room.id] ?? []) {
     const draw = F[type];
@@ -737,57 +770,156 @@ function drawRoom(k, room, out) {
   }
 }
 
-function drawSlab(k, y, isGround) {
-  k.c.fillStyle = '#060608';
-  k.c.fillRect(X(0), y, WIDTH, SLAB);
-  k.cross(X(0), y + 2, WIDTH, SLAB - 4, 6, 0.13);
-  k.line(X(0), y, X(WIDTH), y, 4);
-  k.line(X(0), y + SLAB, X(WIDTH), y + SLAB, 2);
-  for (let x = 20; x < WIDTH; x += 34) k.circle(X(x), y + SLAB / 2, 2.2, 1.2, inkA(0.5), '#060608');
-  if (isGround) k.hatch(X(0), y + 2, WIDTH, SLAB - 4, 4, 0.1);
+function drawSlab(k, y) {
+  const c = k.c;
+  const g = c.createLinearGradient(0, y, 0, y + SLAB);
+  g.addColorStop(0, '#121319');
+  g.addColorStop(1, '#07080a');
+  c.fillStyle = g;
+  c.fillRect(X(0), y, WIDTH, SLAB);
+  c.fillStyle = '#2a2d36';
+  c.fillRect(X(0), y, WIDTH, 3);
+  c.fillStyle = 'rgba(255,255,255,0.45)';
+  c.fillRect(X(0), y, WIDTH, 1);
+  c.fillStyle = EDGE_SOFT;
+  c.fillRect(X(0), y + SLAB - 1, WIDTH, 1);
+  for (let x = 240; x < WIDTH; x += 240) {
+    c.fillStyle = 'rgba(0,0,0,0.55)';
+    c.fillRect(X(x), y + 4, 1, SLAB - 5);
+  }
 }
 
 function drawDividers(k, out) {
+  const c = k.c;
   for (let f = 0; f < FLOORS.length; f++) {
     const rooms = ROOMS.filter((r) => r.floor === f).sort((a, b) => a.x0 - b.x0);
     const fy = FLOORS[f].y;
     const ty = fy - ROOM_HEIGHT;
     for (let i = 1; i < rooms.length; i++) {
       const bx = X(rooms[i].x0);
-      const lintelBottom = fy - DOOR_HEIGHT;
-      k.rect(bx - 10, ty, 20, lintelBottom - ty, 2.5, INK, '#0e0e12');
-      k.cross(bx - 8, ty + 2, 16, lintelBottom - ty - 4, 5, 0.16);
-      k.neon('#ff9a2a', 10, () => {
-        k.line(bx - 10, lintelBottom, bx - 10, fy, 2.5, '#ffb04a');
-        k.line(bx + 10, lintelBottom, bx + 10, fy, 2.5, '#ffb04a');
+      const lintel = fy - DOOR_HEIGHT;
+      c.fillStyle = '#0b0c10';
+      c.fillRect(bx - 11, ty, 22, lintel - ty);
+      c.fillStyle = EDGE;
+      c.fillRect(bx - 11, ty, 1.2, lintel - ty);
+      c.fillRect(bx + 9.8, ty, 1.2, lintel - ty);
+      c.fillRect(bx - 11, lintel - 1, 22, 1.5);
+      // door jambs with a warm accent line
+      c.fillStyle = '#23262e';
+      c.fillRect(bx - 11, lintel, 4, DOOR_HEIGHT);
+      c.fillRect(bx + 7, lintel, 4, DOOR_HEIGHT);
+      k.neon('#ffb04a', 10, () => {
+        c.fillStyle = '#ffc068';
+        c.fillRect(bx - 7.5, lintel + 4, 1.2, DOOR_HEIGHT - 8);
+        c.fillRect(bx + 6.3, lintel + 4, 1.2, DOOR_HEIGHT - 8);
       });
       const left = roomInfo(rooms[i - 1].id);
       const right = roomInfo(rooms[i].id);
-      out.signs.push({ x: bx, y: lintelBottom - 14, text: `< ${left.name.toUpperCase()}   ${right.name.toUpperCase()} >` });
+      out.signs.push({ x: bx, y: lintel - 16, left: left.name.toUpperCase(), right: right.name.toUpperCase() });
     }
   }
 }
 
 function drawLadders(k) {
+  const c = k.c;
   for (const l of LADDERS) {
     const x = X(l.x);
     const yTop = FLOORS[l.upper].y;
     const yBottom = FLOORS[l.lower].y;
-    // hatch opening in the slab
-    k.c.fillStyle = '#101014';
-    k.c.fillRect(x - 26, yTop, 52, SLAB);
-    for (let i = 0; i < 52; i += 8) {
-      k.c.fillStyle = (i / 8) % 2 ? '#d9b526' : '#141414';
-      k.c.fillRect(x - 26 + i, yTop - 2, 8, 4);
-    }
-    k.line(x - 16, yTop - 46, x - 16, yBottom, 3);
-    k.line(x + 16, yTop - 46, x + 16, yBottom, 3);
-    for (let y = yBottom - 14; y > yTop - 46; y -= 18) k.line(x - 16, y, x + 16, y, 2);
+    c.fillStyle = '#0a0b0e';
+    c.fillRect(x - 24, yTop, 48, SLAB);
+    k.neon('#ffb04a', 8, () => {
+      c.fillStyle = '#ffc068';
+      c.fillRect(x - 24, yTop - 1, 48, 2);
+    });
+    c.fillStyle = 'rgba(233,228,214,0.8)';
+    c.fillRect(x - 16, yTop - 48, 2.5, yBottom - yTop + 48);
+    c.fillRect(x + 13.5, yTop - 48, 2.5, yBottom - yTop + 48);
+    c.fillStyle = 'rgba(233,228,214,0.55)';
+    for (let y = yBottom - 16; y > yTop - 48; y -= 18) c.fillRect(x - 14, y, 28, 2);
   }
 }
 
+/** Night sky (parallax layer): gradient, stars and a soft moon. */
+export function drawSky(scene) {
+  if (scene.textures.exists('sky')) return;
+  const t = scene.textures.createCanvas('sky', WORLD.width, WORLD.height);
+  const c = t.getContext();
+  const rng = mulberry32(77);
+  const g = c.createLinearGradient(0, 0, 0, FLOORS[GROUND].y);
+  g.addColorStop(0, '#03040a');
+  g.addColorStop(0.7, '#0a1020');
+  g.addColorStop(1, '#131c33');
+  c.fillStyle = g;
+  c.fillRect(0, 0, WORLD.width, WORLD.height);
+  for (let i = 0; i < 140; i++) {
+    c.fillStyle = `rgba(233,228,214,${0.15 + rng() * 0.6})`;
+    const s = rng() < 0.1 ? 2 : 1.2;
+    c.fillRect(rng() * WORLD.width, rng() * 700, s, s);
+  }
+  const mx = WORLD.width - 360;
+  const my = 120;
+  const halo = c.createRadialGradient(mx, my, 20, mx, my, 160);
+  halo.addColorStop(0, 'rgba(220,230,255,0.25)');
+  halo.addColorStop(1, 'rgba(220,230,255,0)');
+  c.fillStyle = halo;
+  c.fillRect(mx - 160, my - 160, 320, 320);
+  c.fillStyle = '#e4e2da';
+  c.beginPath();
+  c.arc(mx, my, 34, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = 'rgba(10,16,32,0.55)';
+  c.beginPath();
+  c.arc(mx + 14, my - 6, 32, 0, Math.PI * 2);
+  c.fill();
+  t.refresh();
+}
+
+/** Distant city skyline (parallax layer) with a few lit windows. */
+export function drawSkyline(scene) {
+  if (scene.textures.exists('skyline')) return;
+  const W = WORLD.width;
+  const H = 420; // tower bases sit here; below is solid distant ground
+  const t = scene.textures.createCanvas('skyline', W, H + 320);
+  const c = t.getContext();
+  const rng = mulberry32(99);
+  c.fillStyle = '#080b14';
+  c.fillRect(0, H - 2, W, 322);
+  // far hills
+  c.fillStyle = '#080b14';
+  c.beginPath();
+  c.moveTo(0, H);
+  for (let x = 0; x <= W; x += 30) c.lineTo(x, H - 120 - Math.sin(x / 260) * 40 - Math.sin(x / 90) * 10);
+  c.lineTo(W, H);
+  c.fill();
+  // towers
+  for (let x = 0; x < W;) {
+    const bw = 40 + rng() * 90;
+    const bh = 90 + rng() * 260;
+    c.fillStyle = rng() < 0.5 ? '#0b0f1a' : '#0d1220';
+    c.fillRect(x, H - bh, bw, bh);
+    c.fillStyle = 'rgba(233,228,214,0.08)';
+    c.fillRect(x, H - bh, bw, 1);
+    for (let wy = H - bh + 12; wy < H - 10; wy += 14) {
+      for (let wx = x + 8; wx < x + bw - 8; wx += 12) {
+        if (rng() < 0.12) {
+          c.fillStyle = rng() < 0.7 ? 'rgba(255,214,150,0.55)' : 'rgba(140,220,255,0.5)';
+          c.fillRect(wx, wy, 4, 5);
+        }
+      }
+    }
+    if (rng() < 0.25) {
+      c.fillStyle = '#ff3b4a';
+      c.fillRect(x + bw / 2 - 1, H - bh - 10, 2, 10);
+    }
+    x += bw + 6 + rng() * 30;
+  }
+  t.refresh();
+}
+
 /**
- * Draw the whole facility into a canvas texture called `facility`.
+ * Draw the whole facility into a canvas texture called `facility` (the sky is
+ * left transparent so the parallax layers show through).
  * Returns what the scene needs to light and animate it.
  */
 export function drawFacility(scene) {
@@ -795,19 +927,18 @@ export function drawFacility(scene) {
   const tex = scene.textures.createCanvas('facility', WORLD.width, WORLD.height);
   const k = new Ink(tex.getContext(), 2031);
   const out = { lamps: [], glows: [], signs: [], holos: [], leds: [], vents: [], duels: [] };
-  drawSky(k);
   drawGround(k);
   drawShell(k);
   for (const room of ROOMS) drawRoom(k, room, out);
-  for (const f of FLOORS) drawSlab(k, f.y, f === FLOORS[0]);
-  drawSlab(k, FLOORS[TOP].y - ROOM_HEIGHT - SLAB, false);
+  for (const f of FLOORS) drawSlab(k, f.y);
+  drawSlab(k, FLOORS[TOP].y - ROOM_HEIGHT - SLAB);
   drawDividers(k, out);
   drawLadders(k);
   tex.refresh();
 
   const top = FLOORS[TOP].y - ROOM_HEIGHT - SLAB;
-  out.roofSign = { x: X(WIDTH / 2), y: top - 64 };
-  out.antenna = { x: X(1900), y: top - 162 };
+  out.roofSign = { x: X(WIDTH / 2), y: top - 70 };
+  out.antenna = { x: X(1900), y: top - 172 };
   out.building = { x: X(-40), y: top - 30, width: WIDTH + 80, height: FLOORS[0].y + SLAB - top + 30 };
   return out;
 }

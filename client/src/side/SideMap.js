@@ -26,7 +26,7 @@ export default class SideMap {
     this.labels = ROOMS.map((r) =>
       scene.add.text(0, 0, ROOM_INFO.find((i) => i.id === r.id).name.toUpperCase(), { fontFamily: FONT, fontSize: '10px', fontStyle: 'bold', color: '#e9e4d6' }).setOrigin(0.5),
     );
-    this.title = scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '10px', color: '#8a9aa6' });
+    this.title = scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '600', color: '#8f96a3' }).setLetterSpacing(2);
     this.dot = scene.add.circle(0, 0, 3, 0xffffff).setStrokeStyle(2, 0xff8a2a);
     // legend for duel table colours (big map only)
     this.legend = scene.add.container(0, 0);
@@ -90,8 +90,8 @@ export default class SideMap {
     const w = WIDTH * s;
     const h = FLOOR_GAP * FLOORS.length * s;
     const pad = this.big ? 16 : 6;
-    g.fillStyle(0x07080b, 0.85).fillRect(this.ox - pad, this.oy - pad - 14, w + pad * 2, h + pad * 2 + 14);
-    g.lineStyle(1, 0xe9e4d6, 0.5).strokeRect(this.ox - pad, this.oy - pad - 14, w + pad * 2, h + pad * 2 + 14);
+    g.fillStyle(0x07080c, 0.82).fillRoundedRect(this.ox - pad, this.oy - pad - 14, w + pad * 2, h + pad * 2 + 14, this.big ? 12 : 8);
+    g.lineStyle(1, 0xe9e4d6, 0.16).strokeRoundedRect(this.ox - pad, this.oy - pad - 14, w + pad * 2, h + pad * 2 + 14, this.big ? 12 : 8);
     this.hit.setPosition(this.ox - pad, this.oy - pad - 14).setSize(w + pad * 2, h + pad * 2 + 14);
     this.hit.input.hitArea.setTo(0, 0, w + pad * 2, h + pad * 2 + 14);
     this.title.setText(this.big ? `HELIX RESEARCH FACILITY - ${FLOORS.length} FLOORS, ${ROOMS.length} ROOMS, ${DUEL_TABLES.length} DUEL TABLES    (M / TAP TO CLOSE)` : 'MAP [M]').setPosition(this.ox - pad + 4, this.oy - pad - 11);
@@ -104,7 +104,7 @@ export default class SideMap {
       const rh = ROOM_HEIGHT * s;
       const current = this.room?.id === r.id;
       g.fillStyle(color, current ? 0.45 : 0.16).fillRect(a.x + 1, a.y, rw - 2, rh);
-      g.lineStyle(current ? 2 : 1, current ? color : 0xe9e4d6, current ? 1 : 0.55).strokeRect(a.x + 1, a.y, rw - 2, rh);
+      g.lineStyle(current ? 2 : 1, current ? color : 0xe9e4d6, current ? 1 : 0.22).strokeRect(a.x + 1, a.y, rw - 2, rh);
       this.labels[i].setVisible(this.big).setPosition(a.x + rw / 2, a.y + rh / 2).setFontSize(Math.round(Phaser.Math.Clamp(s * 70, 9, 14))).setWordWrapWidth(rw - 8).setAlign('center');
     }
     for (const f of FLOORS) {
