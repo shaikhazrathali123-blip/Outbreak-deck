@@ -125,7 +125,11 @@ At the start of each match, roles are secretly assigned.
 | Infected vs Human (Human wins) | Gets a **Clue** (see below) | Infected is **stunned for 15 seconds** |
 | Infected vs Infected | Not allowed (they know each other) | — |
 
-**Clue:** When a human beats an infected player, they get a private hint like *"Your opponent's hands felt cold..."* This tells them the player is suspicious, but not 100% confirmed (it has a 20% chance of being a false clue).
+**Played cards:** in every decided duel the winner keeps their own card and takes the loser's played card. A draw returns both cards.
+
+**Stunned:** a stunned player can't move or duel until the stun ends.
+
+**Clue:** When a human beats an infected player, they get a private hint like *"Your opponent's hands felt cold..."* This tells them the player is suspicious, but not 100% confirmed (it has a 20% chance of being a false clue). In the game, a human who beats another human gets the same kind of hint 20% of the time, so a clue is never proof.
 
 ### 5. Becoming infected
 - When infected, you get a private message: **"You have been infected. Spread the strain."**
@@ -134,9 +138,9 @@ At the start of each match, roles are secretly assigned.
 - Sharp-eyed players can spot these signs.
 
 ### 6. Running out of cards
-- If you have **0 cards**, you are **Exhausted**.
+- If you have **0 cards** (or only special cards that can't be played in a duel), you are **Exhausted**.
 - Exhausted players can't challenge or be challenged.
-- Go to a **Supply Room** to refill to 4 cards (takes 5 seconds of standing still).
+- Go to a **card refill** (Supply Room, Storage or Cafeteria) to refill to 4 cards (takes 5 seconds of standing still).
 
 ### 7. Cooldowns
 - After a duel, both players have a **10-second cooldown** before they can duel again.
@@ -460,18 +464,18 @@ Each phase ends with something you can **play and test**. Don't start the next p
 **Goal:** a working card duel against a dummy player.
 
 **Tasks:**
-- [ ] `DeckSystem`: create a deck with 4 suits × 10 numbers + special cards, shuffle and deal
-- [ ] `HandUI`: show 7 cards at the bottom of the screen
-- [ ] Place Duel Tables in the map (with colors for challenge types)
-- [ ] A dummy character that stands still
-- [ ] Challenge button appears when near another character
-- [ ] `DuelScene` overlay opens when a duel starts
-- [ ] **High Card** challenge with suit advantage (+3)
-- [ ] Card win/loss: winner takes 1 card
-- [ ] `InfectionSystem`: infected winner infects the loser
-- [ ] Vaccine card blocks infection
-- [ ] Duel cooldown (10 seconds)
-- [ ] Exhausted state at 0 cards + Supply Room refill
+- [x] `DeckSystem`: create a deck with 4 suits × 10 numbers + special cards, shuffle and deal
+- [x] `HandUI`: show 7 cards at the bottom of the screen
+- [x] Place Duel Tables in the map (with colors for challenge types)
+- [x] A dummy character that stands still
+- [x] Challenge button appears when near another character
+- [x] `DuelScene` overlay opens when a duel starts
+- [x] **High Card** challenge with suit advantage (+3)
+- [x] Card win/loss: winner takes 1 card
+- [x] `InfectionSystem`: infected winner infects the loser
+- [x] Vaccine card blocks infection
+- [x] Duel cooldown (10 seconds)
+- [x] Exhausted state at 0 cards + Supply Room refill
 
 **Claude Code prompts:**
 > Create a DeckSystem with 4 suits (Blade, Shield, Toxin, Mind), values 1–10, plus special cards from README.md. Deal 7 cards to the player and show them with a HandUI at the bottom of the screen.
@@ -479,9 +483,9 @@ Each phase ends with something you can **play and test**. Don't start the next p
 > Add a Challenge button when the player is near another character. When pressed, open a DuelScene overlay running the High Card challenge with suit advantage rules from README.md. Apply card loss and infection results.
 
 **Testing checklist:**
-- [ ] Suit advantage math is correct (write unit tests for `duel.js`)
-- [ ] Infection and Vaccine work
-- [ ] Hand updates correctly after each duel
+- [x] Suit advantage math is correct (write unit tests for `duel.js`)
+- [x] Infection and Vaccine work
+- [x] Hand updates correctly after each duel
 
 **✅ Done when:** you can duel a dummy and see infection happen.
 

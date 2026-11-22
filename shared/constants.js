@@ -56,3 +56,42 @@ export const DUEL_CHALLENGES = {
   reflex: { name: 'Reflex Draw', color: '#f2e14a' },
   double: { name: 'Double or Nothing', color: '#b06cff' },
 };
+
+// ------------------------------------------------------------ cards & duels
+export const SUITS = {
+  blade: { name: 'Blade', color: '#ff4a5a', beats: 'shield' },
+  shield: { name: 'Shield', color: '#3e8bff', beats: 'toxin' },
+  toxin: { name: 'Toxin', color: '#3ee67a', beats: 'mind' },
+  mind: { name: 'Mind', color: '#b06cff', beats: 'blade' },
+};
+
+// Special cards shuffled into every deck (one each per deck), see README "Special cards".
+export const SPECIAL_CARDS = {
+  vaccine: { name: 'Vaccine', text: 'Blocks one infection. Used automatically.' },
+  scanner: { name: 'Scanner', text: 'Secretly reveals if a nearby player is infected.' },
+  swap: { name: 'Swap', text: 'Trade one random card with a nearby player.' },
+  freeze: { name: 'Freeze', text: 'Target player can\'t move for 5 seconds.' },
+  decoy: { name: 'Decoy', text: 'A fake copy of you for 10 seconds.' },
+  wild: { name: 'Wild', text: 'Any suit, value 8. Play it in a duel.' },
+  flare: { name: 'Flare', text: 'Lights up the area during Lights Out.' },
+};
+export const INFECTED_CARDS = {
+  spore: { name: 'Spore', text: 'Your next duel win infects even through a Vaccine.' },
+  mask: { name: 'Mask', text: 'Hides your infection signs for 60 seconds.' },
+  rumor: { name: 'Rumor', text: 'Sends a fake clue about a random human.' },
+};
+
+export const RULES = {
+  handSize: 7,
+  refillTo: 4,
+  suitBonus: 3,
+  wildValue: 8,
+  challengeRange: 90, // px between players to challenge
+  answerTime: 5000, // ms to accept or decline a challenge
+  pickTime: 5000, // ms to pick a card in High Card
+  duelCooldown: 10000,
+  stunTime: 15000,
+  refillTime: 5000,
+  refillRange: 60,
+  falseClueChance: 0.2,
+};
