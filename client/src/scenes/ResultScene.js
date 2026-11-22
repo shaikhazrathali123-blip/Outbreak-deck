@@ -37,7 +37,7 @@ export default class ResultScene extends Phaser.Scene {
     y += small ? 28 : 40;
     const mins = Math.floor(r.duration / 60000);
     const secs = String(Math.floor((r.duration % 60000) / 1000)).padStart(2, '0');
-    const sub = r.winner === 'infected' ? `Every human was infected in ${mins}:${secs}` : 'At least one human made it to the end';
+    const sub = r.winner === 'infected' ? (r.reason === 'time' ? 'Time ran out with no clean human left' : `Every human was infected in ${mins}:${secs}`) : r.reason === 'all-killed' ? `Every zombie was shot in ${mins}:${secs}` : 'At least one human made it to the end';
     this.add.text(W / 2, y, `${sub}  ·  you finished ${r.youRole === 'infected' ? 'INFECTED' : 'HUMAN'}`, { fontFamily: FONT, fontSize: '13px', fontStyle: '600', color: '#c9ced8' })
       .setOrigin(0.5).setLetterSpacing(1);
 
@@ -53,7 +53,8 @@ export default class ResultScene extends Phaser.Scene {
       this.add.text(x0 + 24, top, 'PLAYER', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
       this.add.text(x0 + colW * 0.42, top, 'ROLE', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
       this.add.text(x0 + colW * 0.7, top, 'W-L', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
-      this.add.text(x0 + colW * 0.86, top, 'INF', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
+      this.add.text(x0 + colW * 0.9, top, 'SHOT', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
+      this.add.text(x0 + colW * 0.8, top, 'INF', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
     }
     players.forEach((p, i) => {
       const c = Math.floor(i / perCol);
@@ -64,10 +65,12 @@ export default class ResultScene extends Phaser.Scene {
       this.add.circle(x0 + 10, ry + rowH / 2 - 3, 4, hex(p.color));
       const style = { fontFamily: FONT, fontSize: small ? '13px' : '15px', fontStyle: '700', color: you ? '#ffffff' : '#c9ced8' };
       this.add.text(x0 + 24, ry + rowH / 2 - 3, p.name, style).setOrigin(0, 0.5).setLetterSpacing(1);
-      const roleText = p.role === 'infected' ? (p.startedInfected ? 'PATIENT ZERO' : 'INFECTED') : 'HUMAN';
-      this.add.text(x0 + colW * 0.42, ry + rowH / 2 - 3, roleText, { ...style, fontSize: '11px', color: p.role === 'infected' ? '#3ee67a' : '#e9e4d6' }).setOrigin(0, 0.5).setLetterSpacing(2);
+      const team = p.role === 'infected' ? (p.startedInfected ? 'PATIENT ZERO' : 'INFECTED') : p.bitten ? 'BITTEN' : 'HUMAN';
+      const roleText = p.quarantined ? `⛔ ${team}` : !p.alive ? 'SHOT' : team;
+      this.add.text(x0 + colW * 0.42, ry + rowH / 2 - 3, roleText, { ...style, fontSize: '11px', color: p.quarantined ? '#ff9a5a' : !p.alive ? '#ff7a3a' : p.role === 'infected' ? '#3ee67a' : p.bitten ? '#c6f03a' : '#e9e4d6' }).setOrigin(0, 0.5).setLetterSpacing(2);
       this.add.text(x0 + colW * 0.7, ry + rowH / 2 - 3, `${p.stats.won}-${p.stats.lost}`, style).setOrigin(0, 0.5);
-      this.add.text(x0 + colW * 0.86, ry + rowH / 2 - 3, String(p.stats.infections), { ...style, color: p.stats.infections ? '#3ee67a' : '#6a707c' }).setOrigin(0, 0.5);
+      this.add.text(x0 + colW * 0.8, ry + rowH / 2 - 3, String(p.stats.infections), { ...style, color: p.stats.infections ? '#3ee67a' : '#6a707c' }).setOrigin(0, 0.5);
+      this.add.text(x0 + colW * 0.9, ry + rowH / 2 - 3, String(p.stats.kills), { ...style, color: p.stats.kills ? '#ff7a3a' : '#6a707c' }).setOrigin(0, 0.5);
     });
 
     // buttons

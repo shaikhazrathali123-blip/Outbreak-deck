@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FONT } from '../ui/HUD.js';
-import { WIDTH, ROOM_HEIGHT, ORIGIN_X, FLOORS, TOP, ROOMS, LADDERS, DUEL_TABLES, SUPPLY_BOXES } from './facility.js';
-import { ROOMS as ROOM_INFO, DUEL_CHALLENGES } from '../../../shared/constants.js';
+import { WIDTH, ROOM_HEIGHT, ORIGIN_X, FLOORS, TOP, ROOMS, LADDERS, DUEL_TABLES, SUPPLY_BOXES, BLOOD_TEST, CURE_STATION, EMERGENCY_BUTTON } from './facility.js';
+import { ROOMS as ROOM_INFO } from '../../../shared/constants.js';
 
 const FLOOR_GAP = 300; // world px between floor lines
 
@@ -30,16 +30,17 @@ export default class SideMap {
     this.dot = scene.add.circle(0, 0, 3, 0xffffff).setStrokeStyle(2, 0xff8a2a);
     // legend for duel table colours (big map only)
     this.legend = scene.add.container(0, 0);
-    this.legend.add(scene.add.text(0, 0, 'DUEL TABLES', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#e9e4d6' }));
-    Object.values(DUEL_CHALLENGES).forEach((c, i) => {
-      this.legend.add(scene.add.circle(8, 30 + i * 22, 6, Phaser.Display.Color.HexStringToColor(c.color).color));
-      this.legend.add(scene.add.text(22, 30 + i * 22, c.name, { fontFamily: FONT, fontSize: '11px', color: '#c8c4b8' }).setOrigin(0, 0.5));
-    });
-    const extra = Object.keys(DUEL_CHALLENGES).length;
-    this.legend.add(scene.add.rectangle(8, 30 + extra * 22, 11, 9, 0xf2b84a));
-    this.legend.add(scene.add.text(22, 30 + extra * 22, 'Card refill', { fontFamily: FONT, fontSize: '11px', color: '#c8c4b8' }).setOrigin(0, 0.5));
-    this.legend.add(scene.add.rectangle(8, 52 + extra * 22, 4, 12, 0xd9b526));
-    this.legend.add(scene.add.text(22, 52 + extra * 22, 'Ladder', { fontFamily: FONT, fontSize: '11px', color: '#c8c4b8' }).setOrigin(0, 0.5));
+    const row = (y, shape, label) => {
+      this.legend.add(shape);
+      this.legend.add(scene.add.text(22, y, label, { fontFamily: FONT, fontSize: '11px', color: '#c8c4b8' }).setOrigin(0, 0.5));
+    };
+    this.legend.add(scene.add.text(0, 0, 'LEGEND', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#e9e4d6' }));
+    row(30, scene.add.circle(8, 30, 6, 0x2fd2e0), 'Duel table');
+    row(52, scene.add.rectangle(8, 52, 11, 9, 0xf2b84a), 'Card refill');
+    row(74, scene.add.rectangle(8, 74, 4, 12, 0xd9b526), 'Ladder');
+    row(96, scene.add.star(8, 96, 4, 3, 7, 0xff3b4a), 'Emergency Button');
+    row(118, scene.add.circle(8, 118, 5, 0xff6a78).setStrokeStyle(2, 0xffffff), 'Blood Test');
+    row(140, scene.add.circle(8, 140, 5, 0x3ee6d0).setStrokeStyle(2, 0xffffff), 'Cure machine');
     this.root.add([this.backdrop, this.panel, this.hit, ...this.labels, this.title, this.legend, this.dot]);
     scene.input.keyboard?.on('keydown-M', this.toggle, this);
     scene.input.keyboard?.on('keydown-ESC', () => this.big && this.toggle());
@@ -114,13 +115,22 @@ export default class SideMap {
     // duel tables and card refills (shown on both sizes)
     for (const d of DUEL_TABLES) {
       const a = this.pt(d.x, FLOORS[d.floor].y - 20);
-      g.fillStyle(Phaser.Display.Color.HexStringToColor(DUEL_CHALLENGES[d.challenge].color).color, 1).fillCircle(a.x, a.y, this.big ? 6 : 2.5);
+      g.fillStyle(0x2fd2e0, 1).fillCircle(a.x, a.y, this.big ? 6 : 2.5);
     }
     for (const b of SUPPLY_BOXES) {
       const a = this.pt(b.x, FLOORS[b.floor].y - 20);
       const r = this.big ? 6 : 2.5;
       g.fillStyle(0xf2b84a, 1).fillRect(a.x - r, a.y - r * 0.8, r * 2, r * 1.6);
     }
+    // stations
+    const sr = this.big ? 6 : 2.5;
+    for (const [spot, color] of [[BLOOD_TEST, 0xff6a78], [CURE_STATION, 0x3ee6d0]]) {
+      const a = this.pt(spot.x, FLOORS[spot.floor].y - 20);
+      g.fillStyle(color, 1).fillCircle(a.x, a.y, sr);
+      if (this.big) g.lineStyle(2, 0xffffff, 0.9).strokeCircle(a.x, a.y, sr);
+    }
+    const eb = this.pt(EMERGENCY_BUTTON.x, FLOORS[EMERGENCY_BUTTON.floor].y - 20);
+    g.fillStyle(0xff3b4a, 1).fillTriangle(eb.x - sr, eb.y + sr, eb.x + sr, eb.y + sr, eb.x, eb.y - sr);
     this.legend.setVisible(this.big && this.legendW > 0).setPosition(this.ox + w + pad + 24, this.oy);
     for (const l of LADDERS) {
       const a = this.pt(ORIGIN_X + l.x, FLOORS[l.upper].y - 10);

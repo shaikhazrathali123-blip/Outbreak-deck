@@ -1,7 +1,7 @@
 // "Ink & neon" art for the side-view facility, drawn in code onto one big canvas.
 // Clean bone-white linework on deep blue-black, soft gradients, and neon only
 // where something glows (screens, tanks, signs, infection green).
-import { ROOMS as ROOM_INFO, DUEL_CHALLENGES } from '../../../shared/constants.js';
+import { ROOMS as ROOM_INFO } from '../../../shared/constants.js';
 import { WIDTH, ROOM_HEIGHT, DOOR_HEIGHT, ORIGIN_X, WORLD, FLOORS, GROUND, TOP, ROOMS, LADDERS, FURNITURE } from './facility.js';
 
 export const INK = '#e9e4d6';
@@ -185,6 +185,24 @@ const F = {
     for (const y of [-46, -32, -18]) k.line(x + 4, fy + y, x + 36, fy + y, 1.5);
     k.circle(x + 6, fy - 4, 4, 2, INK, DARK);
     k.circle(x + 34, fy - 4, 4, 2, INK, DARK);
+  },
+  /** Blood Test booth (centred): screen, arm cuff and a glowing drop. */
+  bloodTest(k, x, fy, o, out) {
+    k.rect(x - 30, fy - 150, 60, 150, 2, INK, DARK);
+    k.hatch(x - 28, fy - 40, 56, 38, 6, 0.12);
+    k.rect(x - 22, fy - 138, 44, 36, 2, INK, '#050608');
+    k.neon('#ff4a5a', 12, () => {
+      k.c.fillStyle = '#ff6a78';
+      k.c.beginPath();
+      k.c.moveTo(x, fy - 134);
+      k.c.quadraticCurveTo(x + 10, fy - 118, x, fy - 108);
+      k.c.quadraticCurveTo(x - 10, fy - 118, x, fy - 134);
+      k.c.fill();
+    });
+    k.text('BLOOD TEST', x, fy - 92, 8, '#ffb0b8', 'center');
+    k.rect(x - 36, fy - 74, 72, 14, 3, INK, '#14161c');
+    k.neon('#3ee6d0', 8, () => k.line(x - 26, fy - 67, x + 26, fy - 67, 2, '#6ffff0'));
+    out.glows.push({ x, y: fy - 120, color: '#ff4a5a', radius: 80, intensity: 0.4, mode: 'pulse' });
   },
   redCross(k, x, fy, o, out) {
     const y = fy - 190;
@@ -376,9 +394,7 @@ const F = {
     out.glows.push({ x, y: cy, color: '#2fd2c0', radius: 170, intensity: 0.35, mode: 'steady' });
   },
   duelTable(k, x, fy, o, out) {
-    const type = o.challenge ?? 'highcard';
-    const ch = DUEL_CHALLENGES[type];
-    const col = ch.color;
+    const col = '#2fd2e0';
     k.c.fillStyle = DARK;
     k.c.beginPath();
     k.c.ellipse(x, fy - 52, 46, 10, 0, 0, Math.PI * 2);
@@ -394,13 +410,13 @@ const F = {
     k.line(x - 24, fy, x + 24, fy, 3);
     k.rect(x - 22, fy - 60, 14, 8, 1.5, INK, '#e9e4d6');
     k.rect(x + 8, fy - 60, 14, 8, 1.5, INK, col);
-    // hanging sign with the challenge name
+    // hanging sign
     k.line(x, fy - ROOM_HEIGHT + 24, x, fy - 128, 1, 'rgba(233,228,214,0.4)');
     k.neon(col, 10, () => {
       k.rect(x - 56, fy - 128, 112, 20, 2, col, '#07080b');
-      k.text(ch.name.toUpperCase(), x, fy - 118, 10, col, 'center');
+      k.text('DUEL', x, fy - 118, 10, col, 'center');
     });
-    out.duels.push({ x, y: fy - 52, challenge: type });
+    out.duels.push({ x, y: fy - 52 });
     out.glows.push({ x, y: fy - 52, color: col, radius: 90, intensity: 0.45, mode: 'pulse' });
   },
   emergencyButton(k, x, fy, o, out) {

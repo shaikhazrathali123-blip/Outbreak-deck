@@ -48,57 +48,58 @@ export const PLAYER_COLORS = [
   '#ff9ab8', '#6affd8', '#a8743a', '#9ab8ff', '#ff5a1a',
 ];
 
-// Duel table types, by table colour (see README "Duel Challenges").
-export const DUEL_CHALLENGES = {
-  highcard: { name: 'High Card', color: '#e9e4d6' },
-  bluff: { name: 'Bluff Bet', color: '#ff3b4a' },
-  memory: { name: 'Memory Match', color: '#3e8bff' },
-  reflex: { name: 'Reflex Draw', color: '#f2e14a' },
-  double: { name: 'Double or Nothing', color: '#b06cff' },
-};
 
 // ------------------------------------------------------------ cards & duels
-export const SUITS = {
-  blade: { name: 'Blade', color: '#ff4a5a', beats: 'shield' },
-  shield: { name: 'Shield', color: '#3e8bff', beats: 'toxin' },
-  toxin: { name: 'Toxin', color: '#3ee67a', beats: 'mind' },
-  mind: { name: 'Mind', color: '#b06cff', beats: 'blade' },
-};
-
-// Special cards shuffled into every deck (one each per deck), see README "Special cards".
-export const SPECIAL_CARDS = {
-  vaccine: { name: 'Vaccine', text: 'Blocks one infection. Used automatically.' },
-  scanner: { name: 'Scanner', text: 'Secretly reveals if a nearby player is infected.' },
-  swap: { name: 'Swap', text: 'Trade one random card with a nearby player.' },
-  freeze: { name: 'Freeze', text: 'Target player can\'t move for 5 seconds.' },
-  decoy: { name: 'Decoy', text: 'A fake copy of you for 10 seconds.' },
-  wild: { name: 'Wild', text: 'Any suit, value 8. Play it in a duel.' },
-  flare: { name: 'Flare', text: 'Lights up the area during Lights Out.' },
-};
-export const INFECTED_CARDS = {
-  spore: { name: 'Spore', text: 'Your next duel win infects even through a Vaccine.' },
-  mask: { name: 'Mask', text: 'Hides your infection signs for 60 seconds.' },
-  rumor: { name: 'Rumor', text: 'Sends a fake clue about a random human.' },
+// Only four kinds of card (see README "Cards"):
+//   number 1–9  duel power, highest wins
+//   zombie      infected only: beats any number card and infects the loser
+//   gun         kills a zombie card; against a number card it misfires (you lose)
+//   cure        automatic: blocks one infection
+export const CARD_INFO = {
+  number: { name: 'Number', color: '#2fd2e0', text: 'Duel card. The higher number wins.' },
+  zombie: { name: 'Zombie', color: '#3ee67a', text: 'Beats any number card and bites the loser: they turn 45s later. Loses to a Gun.' },
+  gun: { name: 'Gun', color: '#ff7a3a', text: 'Kills a Zombie card. Against a number it misfires: everyone hears it and you are stunned.' },
+  cure: { name: 'Cure', color: '#3e8bff', text: 'Automatic: if you would be infected, the Cure is used instead.' },
 };
 
 export const RULES = {
   handSize: 7,
   refillTo: 4,
-  suitBonus: 3,
-  wildValue: 8,
+  deckGuns: 3, // per 36 number cards
+  deckCures: 3,
+  zombieStart: 2, // Zombie cards an infected player starts with
+  zombieMax: 2,
+  zombieRegen: 40000, // ms for an infected player to grow a new Zombie card
   challengeRange: 90, // px between players to challenge
-  answerTime: 5000, // ms to accept or decline a challenge
-  pickTime: 5000, // ms to pick a card in High Card
+  answerTime: 5000, // ms to accept or run
+  pickTime: 5000, // ms to pick a card in a duel
   duelCooldown: 10000,
-  stunTime: 15000,
+  stunTime: 12000,
   refillTime: 5000,
   refillRange: 60,
   falseClueChance: 0.2,
-  scannerAccuracy: 0.9,
-  freezeTime: 5000,
-  decoyTime: 10000,
-  maskTime: 60000,
   signsTime: 60000, // infection signs grow over this long
-  cardRange: 260, // px: reach for Scanner, Swap and Freeze
+  chaseTime: 8000, // ms the challenger has to catch someone who ran
+  chaseHeadStart: 900, // ms before the chaser may move
+  catchRange: 46, // px: touching distance that forces the duel
+  chaserSpeed: 1.2, // speed multipliers during a chase
+  runnerSpeed: 1.1,
   matchMinutes: 6,
+
+  // --- the "mind game" rules (README "Meetings", "Blood Test", "Incubation", "Hunger")
+  incubation: 45000, // ms a bitten human has before they turn (Cure Lab or a Cure card saves them)
+  cleanBadge: 60000, // ms a Clean badge from the Blood Test lasts
+  bloodTestTime: 4000, // ms standing still at the Blood Test
+  cureStationTime: 6000, // ms standing still at the Cure Lab machine
+  cureStationRecharge: 60000, // ms the Cure Lab machine needs after it cures someone
+  hunger: 90000, // ms an infected player can go without biting before they start STARVING (visible to all)
+  growlEvery: 20000, // ms between the public growls of a starving zombie
+  stationRange: 60, // px from a station to use it
+  meetingRange: 70, // px from the Emergency Button to call a meeting
+  meetingsPerPlayer: 1,
+  meetingFirstDelay: 30000, // no meeting in the first 30s
+  meetingCooldown: 30000, // ms after a meeting before the next can be called
+  meetingTalk: 30000, // ms of discussion
+  meetingVote: 15000, // ms of voting
+  meetingResult: 4500, // ms showing the result
 };

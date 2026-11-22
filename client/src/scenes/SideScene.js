@@ -75,14 +75,23 @@ export default class SideScene extends Phaser.Scene {
 
     this.scene.launch('SideUIScene', { gameScene: this });
     this.ui = this.scene.get('SideUIScene');
+    // emergency meetings draw on top of everything
+    const onMeeting = (open) => {
+      if (open) this.scene.launch('MeetingScene', { session: this.session });
+      else this.scene.stop('MeetingScene');
+    };
+    this.events.on('meeting', onMeeting);
     this.events.once('match-over', (result) => {
       this.time.delayedCall(1600, () => {
+        this.scene.stop('MeetingScene');
         this.scene.stop('DuelScene');
         this.scene.stop('SideUIScene');
         this.scene.start('ResultScene', result);
       });
     });
     this.events.once('shutdown', () => {
+      this.events.off('meeting', onMeeting);
+      this.scene.stop('MeetingScene');
       this.scale.off('resize', this.applyZoom, this);
       this.scene.stop('SideUIScene');
     });

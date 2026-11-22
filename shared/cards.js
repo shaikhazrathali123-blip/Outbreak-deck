@@ -1,5 +1,6 @@
 // Cards and decks. Pure functions, shared by the client and (later) the server.
-import { SUITS, SPECIAL_CARDS, INFECTED_CARDS } from './constants.js';
+// Four kinds only: number (1–9), zombie, gun, cure. See CARD_INFO in constants.js.
+import { RULES, CARD_INFO } from './constants.js';
 
 /** Small seeded random generator, so matches and tests are reproducible. */
 export function createRng(seed = Date.now()) {
@@ -24,36 +25,32 @@ export function shuffle(list, rng) {
 let nextId = 1;
 const newId = () => `c${nextId++}`;
 
-export const numberCard = (suit, value) => ({ id: newId(), kind: 'number', suit, value });
-export const specialCard = (type) => ({ id: newId(), kind: 'special', type });
-export const infectedCard = (type) => ({ id: newId(), kind: 'infected', type });
+export const numberCard = (value) => ({ id: newId(), kind: 'number', value });
+export const zombieCard = () => ({ id: newId(), kind: 'zombie' });
+export const gunCard = () => ({ id: newId(), kind: 'gun' });
+export const cureCard = () => ({ id: newId(), kind: 'cure' });
 
 /**
- * A deck: every suit 1–10 plus one of each special card (~1 in 7), repeated
- * `copies` times so big matches never run dry.
+ * A deck: four of every number 1–9, plus a few Guns and Cures, repeated
+ * `copies` times so big matches never run dry. Zombie cards are never in
+ * the deck: only infected players grow them.
  */
 export function createDeck(rng, copies = 1) {
   const cards = [];
   for (let c = 0; c < copies; c++) {
-    for (const suit of Object.keys(SUITS)) for (let v = 1; v <= 10; v++) cards.push(numberCard(suit, v));
-    for (const type of Object.keys(SPECIAL_CARDS)) cards.push(specialCard(type));
+    for (let v = 1; v <= 9; v++) for (let k = 0; k < 4; k++) cards.push(numberCard(v));
+    for (let k = 0; k < RULES.deckGuns; k++) cards.push(gunCard());
+    for (let k = 0; k < RULES.deckCures; k++) cards.push(cureCard());
   }
   return shuffle(cards, rng);
 }
 
 /** How many deck copies a match needs (7 cards each plus plenty to refill from). */
-export const decksFor = (players) => Math.max(1, Math.ceil((players * 7 * 2) / 47));
+export const decksFor = (players) => Math.max(1, Math.ceil((players * 7 * 2) / 42));
 
-/** Can this card be played in a High Card duel? */
-export const isPlayable = (card) => card.kind === 'number' || (card.kind === 'special' && card.type === 'wild');
-
-export const randomInfectedCard = (rng) => {
-  const types = Object.keys(INFECTED_CARDS);
-  return infectedCard(types[Math.floor(rng() * types.length)]);
-};
+/** Can this card be played in a duel? (Cure works on its own.) */
+export const isPlayable = (card) => card.kind !== 'cure';
 
 export function cardName(card) {
-  if (card.kind === 'number') return `${SUITS[card.suit].name} ${card.value}`;
-  if (card.kind === 'special') return SPECIAL_CARDS[card.type].name;
-  return INFECTED_CARDS[card.type].name;
+  return card.kind === 'number' ? `${card.value}` : CARD_INFO[card.kind].name;
 }

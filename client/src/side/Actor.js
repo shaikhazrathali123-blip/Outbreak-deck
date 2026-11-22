@@ -28,6 +28,8 @@ export default class Actor {
       const style = { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color, resolution: 3 };
       this.tag = scene.add.text(x, 0, name, style).setOrigin(0.5).setDepth(9);
       this.status = scene.add.text(x, 0, '', { ...style, fontSize: '11px', color: '#ffb04a' }).setOrigin(0.5).setDepth(9);
+      // Clean badge from the Blood Test, visible to everyone
+      this.badge = scene.add.text(x, 0, '', { ...style, fontSize: '10px', color: '#3ee6d0' }).setOrigin(0.5).setDepth(9);
     }
   }
 
@@ -127,15 +129,17 @@ export default class Actor {
     return false;
   }
 
-  updateLabels(statusText = '') {
+  updateLabels(statusText = '', badgeText = '') {
     if (!this.tag) return;
     this.tag.setPosition(this.x, this.y - 94);
-    this.status.setText(statusText).setPosition(this.x, this.y - 110);
+    this.badge.setText(badgeText).setPosition(this.x, this.y - 108);
+    this.status.setText(statusText).setPosition(this.x, this.y - (badgeText ? 122 : 110));
   }
 
   setVisible(v) {
     this.sprite.setVisible(v);
     this.tag?.setVisible(v);
     this.status?.setVisible(v);
+    this.badge?.setVisible(v);
   }
 }

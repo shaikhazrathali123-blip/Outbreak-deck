@@ -1,28 +1,35 @@
-// Duel maths. Pure functions, shared by the client and (later) the server.
-import { SUITS, RULES } from './constants.js';
+// Duel resolution. Pure functions, shared by the client and (later) the server.
+//
+//   number vs number  -> higher number wins (same number = draw)
+//   zombie vs number  -> zombie wins and infects
+//   gun    vs zombie  -> gun wins and kills the zombie
+//   gun    vs number  -> gun misfires: the number wins
+//   gun    vs gun     -> draw
+//   zombie vs zombie  -> draw (two infected always get a fake duel: see Match.settleDuel)
 
-/** True if suit `a` is strong against suit `b`. */
-export const suitBeats = (a, b) => SUITS[a]?.beats === b;
-
-/**
- * Value of `card` when played against `other` in High Card.
- * Number cards get +3 when their suit is strong against the other suit.
- * Wild counts as value 8 in the best suit, so it gets +3 against any number card.
- */
-export function scoreCard(card, other) {
-  if (card.kind === 'special' && card.type === 'wild') {
-    const bonus = other.kind === 'number' ? RULES.suitBonus : 0;
-    return { base: RULES.wildValue, bonus, total: RULES.wildValue + bonus };
-  }
-  if (card.kind !== 'number') throw new Error(`Card ${card.id} can't be played in a duel`);
-  const bonus = other.kind === 'number' && suitBeats(card.suit, other.suit) ? RULES.suitBonus : 0;
-  return { base: card.value, bonus, total: card.value + bonus };
+/** How a card is shown next to the result, e.g. "7", "ZOMBIE", "BANG", "MISFIRE". */
+function label(card, other) {
+  if (card.kind === 'number') return String(card.value);
+  if (card.kind === 'zombie') return 'ZOMBIE';
+  if (card.kind === 'gun') return other.kind === 'zombie' ? 'BANG' : other.kind === 'gun' ? 'GUN' : 'MISFIRE';
+  return card.kind.toUpperCase();
 }
 
-/** High Card: both cards are revealed, highest total wins. winner is 'a', 'b' or null (draw). */
-export function resolveHighCard(cardA, cardB) {
-  const a = scoreCard(cardA, cardB);
-  const b = scoreCard(cardB, cardA);
-  const winner = a.total > b.total ? 'a' : b.total > a.total ? 'b' : null;
-  return { winner, a, b };
+/**
+ * @returns {{ winner: 'a'|'b'|null, kind: 'number'|'infect'|'kill'|'misfire'|'draw', a: {label}, b: {label} }}
+ */
+export function resolveDuel(cardA, cardB) {
+  const out = (winner, kind) => ({ winner, kind, a: { label: label(cardA, cardB) }, b: { label: label(cardB, cardA) } });
+  const ka = cardA.kind;
+  const kb = cardB.kind;
+  if (ka === 'cure' || kb === 'cure') throw new Error("A Cure can't be played in a duel");
+  if (ka === kb && ka !== 'number') return out(null, 'draw');
+  if (ka === 'gun' && kb === 'zombie') return out('a', 'kill');
+  if (kb === 'gun' && ka === 'zombie') return out('b', 'kill');
+  if (ka === 'zombie') return out('a', 'infect');
+  if (kb === 'zombie') return out('b', 'infect');
+  if (ka === 'gun') return out('b', 'misfire');
+  if (kb === 'gun') return out('a', 'misfire');
+  if (cardA.value === cardB.value) return out(null, 'draw');
+  return out(cardA.value > cardB.value ? 'a' : 'b', 'number');
 }

@@ -58,21 +58,21 @@ export const SPAWN = { floor: GROUND, x: 170 };
 
 // Furniture: [type, x, options]. Drawn in ink with neon details (see inkArt.js).
 // x is the left edge, except for centred pieces (helix, duelTable, emergencyButton,
-// cureMachine, bigTank, holoTable, chair, redCross, clock, reactorCore, pad).
-// Keep ~40px clear around ladders. duelTable options: { challenge } (see DUEL_CHALLENGES).
+// bloodTest, cureMachine, bigTank, holoTable, chair, redCross, clock, reactorCore, pad).
+// Keep ~40px clear around ladders.
 export const FURNITURE = {
   // ---------------------------------------------------------- basement
   server: [
     ['serverRack', 20], ['serverRack', 62], ['serverRack', 104], ['serverRack', 146],
-    ['duelTable', 250, { challenge: 'memory' }], ['desk', 400, { w: 130, monitors: 2 }], ['chair', 465],
+    ['duelTable', 250], ['desk', 400, { w: 130, monitors: 2 }], ['chair', 465],
     ['wallScreen', 470], ['vent', 200],
   ],
   cafeteria: [
-    ['counter', 580, { w: 180 }], ['duelTable', 850, { challenge: 'bluff' }], ['duelTable', 990, { challenge: 'highcard' }],
+    ['counter', 580, { w: 180 }], ['duelTable', 850], ['duelTable', 990],
     ['vending', 1145], ['vending', 1190], ['supplyBox', 1238], ['poster', 800, { title: 'MENU' }], ['clock', 930],
   ],
   reactor: [
-    ['pad', 1330], ['duelTable', 1420, { challenge: 'double' }], ['pad', 1515], ['controlPanel', 1350],
+    ['pad', 1330], ['duelTable', 1420], ['pad', 1515], ['controlPanel', 1350],
     ['reactorCore', 1700], ['vent', 1460],
   ],
   quarantine: [
@@ -84,12 +84,12 @@ export const FURNITURE = {
     ['plant', 255], ['camera', 285], ['vent', 210],
   ],
   lobby: [
-    ['window', 380, { w: 90 }], ['reception', 400, { w: 180 }], ['duelTable', 705, { challenge: 'reflex' }],
+    ['window', 380, { w: 90 }], ['reception', 400, { w: 180 }], ['duelTable', 705],
     ['plant', 785], ['waterCooler', 828], ['clock', 700], ['poster', 470, { title: 'HELIX' }],
   ],
   locker: [
     ['lockers', 880, { w: 180 }], ['bench', 900, { w: 130 }], ['puddle', 1310],
-    ['lockers', 1235, { w: 150 }], ['duelTable', 1300, { challenge: 'bluff' }], ['vent', 1370],
+    ['lockers', 1235, { w: 150 }], ['duelTable', 1300], ['vent', 1370],
   ],
   supply: [
     ['shelf', 1420, { w: 120 }], ['supplyStation', 1760, { w: 120 }], ['supplyBox', 1935],
@@ -97,11 +97,11 @@ export const FURNITURE = {
   ],
   // ---------------------------------------------------------- floor 2
   medbay: [
-    ['bed', 30, { w: 150 }], ['ivStand', 195], ['redCross', 440], ['nurseDesk', 360, { w: 160 }],
-    ['medCart', 530], ['poster', 230, { title: 'WASH HANDS' }],
+    ['bed', 20, { w: 100 }], ['ivStand', 135], ['bloodTest', 205], ['redCross', 440], ['nurseDesk', 360, { w: 160 }],
+    ['medCart', 530], ['poster', 455, { title: 'WASH HANDS' }],
   ],
   hall: [
-    ['helix', 1100], ['duelTable', 960, { challenge: 'highcard' }], ['duelTable', 1340, { challenge: 'highcard' }],
+    ['helix', 1100], ['duelTable', 960], ['duelTable', 1340],
     ['emergencyButton', 1100], ['bench', 690, { w: 110 }], ['bench', 1420, { w: 110 }], ['plant', 660], ['plant', 1540],
     ['wallScreen', 760], ['wallScreen', 1440], ['vent', 1500],
   ],
@@ -120,10 +120,10 @@ export const FURNITURE = {
   ],
   lab2: [
     ['desk', 1190, { w: 200, monitors: 3 }], ['chair', 1290], ['serverRack', 1420], ['serverRack', 1465],
-    ['whiteboard', 1520, { w: 120 }], ['duelTable', 1580, { challenge: 'memory' }], ['fileCabinet', 1655], ['vent', 1210],
+    ['whiteboard', 1520, { w: 120 }], ['duelTable', 1580], ['fileCabinet', 1655], ['vent', 1210],
   ],
   storage: [
-    ['shelf', 1720, { w: 110 }], ['duelTable', 1890, { challenge: 'reflex' }], ['supplyBox', 1955],
+    ['shelf', 1720, { w: 110 }], ['duelTable', 1890], ['supplyBox', 1955],
     ['barrels', 2110], ['vent', 1840],
   ],
 };
@@ -132,8 +132,22 @@ const roomOf = (id) => ROOMS.find((r) => r.id === id);
 
 // Gameplay markers (world x, floor index), for Phase 2+.
 export const DUEL_TABLES = Object.entries(FURNITURE).flatMap(([id, items]) =>
-  items.filter(([t]) => t === 'duelTable').map(([, x, o]) => ({ room: id, floor: roomOf(id).floor, x: ORIGIN_X + x, challenge: o.challenge })),
+  items.filter(([t]) => t === 'duelTable').map(([, x]) => ({ room: id, floor: roomOf(id).floor, x: ORIGIN_X + x })),
 );
 export const SUPPLY_BOXES = Object.entries(FURNITURE).flatMap(([id, items]) =>
   items.filter(([t]) => t === 'supplyBox').map(([, x]) => ({ room: id, floor: roomOf(id).floor, x: ORIGIN_X + x + 28 })),
 );
+
+/** One centred piece of furniture as a gameplay spot (world x, floor). */
+const spotOf = (type) => {
+  for (const [id, items] of Object.entries(FURNITURE)) {
+    const hit = items.find(([t]) => t === type);
+    if (hit) return { room: id, floor: roomOf(id).floor, x: ORIGIN_X + hit[1] };
+  }
+  throw new Error(`No ${type} on the map`);
+};
+// Stations: stand still at the Blood Test (Medbay) or the Cure machine (Cure Lab);
+// the Emergency Button (Central Hall) calls a meeting.
+export const BLOOD_TEST = spotOf('bloodTest');
+export const CURE_STATION = spotOf('cureMachine');
+export const EMERGENCY_BUTTON = spotOf('emergencyButton');

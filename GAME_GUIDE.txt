@@ -1,0 +1,298 @@
+================================================================
+                 OUTBREAK DECK  -  HOW TO PLAY
+================================================================
+
+THE IDEA IN ONE LINE
+--------------------
+You are trapped in the Helix research facility. A few players are
+secretly ZOMBIES (infected). Everyone fights with cards. If a zombie
+plays its ZOMBIE card on you, you become a zombie too.
+Trust no one.
+
+
+----------------------------------------------------------------
+1. TEAMS
+----------------------------------------------------------------
+
+At the start the game secretly gives everyone a role. Only YOU can
+see your own role.
+
+  HUMAN
+    - Most players are human.
+
+  INFECTED (ZOMBIE)
+    - A few players start infected:
+        6-8 players   -> 1 infected
+        9-12 players  -> 2 infected
+        13-15 players -> 3 infected
+    - Infected players can see each other (green outline).
+    - Two infected CAN duel each other: it is a FAKE DUEL. It looks
+      like a normal duel to everyone else, but both keep their cards.
+    - The first infected player is called "PATIENT ZERO".
+
+  A human hit by a ZOMBIE card is BITTEN: 45 seconds later they turn
+  and switch to the zombie team (see section 6).
+
+
+----------------------------------------------------------------
+2. HOW TO WIN
+----------------------------------------------------------------
+
+  HUMANS WIN   if at least one human who is NOT bitten is left when
+               time runs out,
+               OR if every zombie has been shot or quarantined (and
+               nobody is still bitten).
+  ZOMBIES WIN  if every human has turned, been shot or quarantined,
+               OR time runs out and every human left is bitten.
+
+  Match length: 4, 6 or 8 minutes (choose in the menu).
+
+
+----------------------------------------------------------------
+3. THE CARDS  (only 4 kinds)
+----------------------------------------------------------------
+
+  1 - 9    NUMBER CARDS
+           Your power in a duel. Higher number wins. That's it.
+
+  ZOMBIE   (only zombies have it)
+           Beats ANY number card, even a 9, and BITES the loser.
+           They turn into a zombie 45 seconds later.
+           Zombies start with 2 and grow a new one every 40 seconds
+           (never more than 2). Each Zombie card is used up when played.
+
+  GUN      (rare)
+           If the other player plays a ZOMBIE card, your Gun KILLS them.
+           But if they play a number card, your Gun MISFIRES: you lose,
+           EVERYONE hears it, and you are STUNNED for 12 seconds.
+           So only shoot when you are sure they are a zombie!
+
+  CURE     (rare)
+           Works by itself. If a Zombie card would bite you, the Cure
+           is used up instead and you stay human. You also learn that
+           your opponent is a zombie. If you are already bitten and
+           pick up a Cure, it cures you.
+
+  Quick table:
+     number vs number  ->  higher number wins
+     ZOMBIE vs number  ->  ZOMBIE wins, the human is bitten
+     GUN    vs ZOMBIE  ->  GUN wins, the zombie is dead
+     GUN    vs number  ->  the number wins (misfire: public + stun)
+     same vs same      ->  draw, cards go back
+
+
+----------------------------------------------------------------
+4. DUELS
+----------------------------------------------------------------
+
+STEP 1 - CHALLENGE
+   Walk close to another player. The CHALLENGE button appears.
+   Press it (or E).
+
+STEP 2 - ACCEPT OR RUN
+   The other player has 5 seconds to choose:
+     ACCEPT (Y)  -> both walk to the nearest duel table.
+     RUN    (N)  -> a CHASE starts (see below).
+   If they do not choose in time, they RUN.
+
+STEP 3 - PICK A CARD
+   At the table you have 5 seconds to pick one card.
+   (If you do not pick, a random card is played for you.)
+   Both cards flip over at the same time.
+
+STEP 4 - RESULT
+   - Number win: the winner takes the loser's card.
+   - Zombie win: the loser is bitten (unless they have a Cure).
+   - Gun vs Zombie: the zombie is shot and is out of the match.
+   - A human who beats a zombie with a NUMBER card also gets a CLUE,
+     and the zombie is STUNNED for 12 seconds (cannot move or duel).
+   After a duel, both players wait 10 seconds before they can duel again.
+
+
+----------------------------------------------------------------
+5. THE CHASE  (when someone runs)
+----------------------------------------------------------------
+
+   - The runner gets a short head start (about 1 second).
+   - Then the challenger has 8 SECONDS to catch them.
+   - The chaser is a little faster than the runner.
+   - If the chaser TOUCHES the runner, the duel is forced: no more
+     running.
+   - If the runner gets away (climbing a ladder helps!), the chase
+     ends and nobody can challenge either of them for a few seconds.
+
+   When YOU are being chased, the screen pulses red like a heartbeat.
+
+
+----------------------------------------------------------------
+6. BITTEN: THE 45 SECONDS
+----------------------------------------------------------------
+
+   When a Zombie card hits you, you are BITTEN. Your role chip says
+   "BITTEN - TURNING IN 0:45". You still play as a human until then.
+   Nobody knows except you and the zombie who bit you. Choose:
+
+     - RUN TO A CURE: the CURE machine in the CURE LAB (floor 2).
+       Press it and stand still 6 seconds. After it cures someone it
+       needs 60 seconds to recharge. Anyone nearby sees you use it.
+     - WARN PEOPLE: call a meeting and say who bit you.
+     - HIDE IT: say nothing... and become a zombie.
+
+   When the time is up you TURN: you grow a Zombie card and you are
+   on the zombie team.
+
+
+----------------------------------------------------------------
+7. HUNGER (zombies)
+----------------------------------------------------------------
+
+   A zombie must bite someone at least every 90 SECONDS.
+   If not, they start STARVING:
+     - they glow bright green for everyone to see,
+     - a hungry growl from their room is announced every 20 seconds.
+   A bite feeds them and resets the clock.
+
+
+----------------------------------------------------------------
+8. BLOOD TEST AND THE CLEAN BADGE
+----------------------------------------------------------------
+
+   The BLOOD TEST booth is in the MEDBAY (floor 2). Press it and stand
+   still 4 seconds.
+     - CLEAN: you get a CLEAN badge over your head for 60 seconds.
+       Everyone can see it.
+     - POSITIVE (zombie OR bitten): the whole facility is told.
+
+   The badge only proves you were clean WHEN YOU TOOK THE TEST.
+   Ask yourself: were they tested before or after they met the zombie?
+
+
+----------------------------------------------------------------
+9. EMERGENCY MEETINGS AND VOTING
+----------------------------------------------------------------
+
+   The red EMERGENCY BUTTON is in the CENTRAL HALL (floor 2).
+     - Each player can call ONE meeting per match.
+     - No meeting in the first 30 seconds, or within 30 seconds of the
+       last one.
+   Everyone still in the match is pulled into the hall and the match
+   clock PAUSES (so do the bite timer, hunger, badges and stuns).
+
+   1. DISCUSS (30 seconds): tap a player, then a quick-chat button:
+        ACCUSE, VOUCH, I'M CLEAN, I WAS BITTEN, SKIP.
+      Anyone can lie. But badges are public: if someone says "I'm
+      clean" and has no badge, everyone can see the lie.
+   2. VOTE (15 seconds): tap a player, then VOTE. Or SKIP VOTE.
+   3. RESULT: the player with the most votes goes to the QUARANTINE
+      CELL and is out of the match. Their role stays SECRET.
+      A tie, or as many skips as the top votes = nobody goes.
+
+
+----------------------------------------------------------------
+10. HOW TO SPOT A ZOMBIE
+----------------------------------------------------------------
+
+   - CLUES: beat someone with a number card and you might get a hint
+     like "Your opponent's hands felt cold...". (1 in 5 clues about
+     humans is false, so be careful.)
+   - CURE: if your Cure saves you, the attacker is 100% a zombie.
+   - SIGNS that grow over about 60 seconds after turning:
+        * a green tint on their suit
+        * they twitch now and then
+        * they leave faintly glowing green footprints
+   - STARVING zombies glow and growl.
+   - BLOOD TEST: a positive test is announced to everyone.
+   - SHOTS and MISFIRES: everyone is told. A misfire means the
+     shooter was sure... why?
+   - Zombies duel each other too (fake duels), so "they never duel
+     each other" is NOT a clue any more.
+
+
+----------------------------------------------------------------
+11. RUNNING OUT OF CARDS
+----------------------------------------------------------------
+
+   If you have no card you can play in a duel, you cannot challenge,
+   and nobody can challenge you.
+
+   To refill: go to a CARD REFILL point and stand still for
+   5 seconds. You get back up to 4 cards.
+
+   Card refill points: SUPPLY ROOM (ground floor),
+                       STORAGE (floor 3),
+                       CAFETERIA (basement).
+
+
+----------------------------------------------------------------
+12. CONTROLS
+----------------------------------------------------------------
+
+  Action                  PC                    Phone
+  ----------------------  --------------------  ------------------------
+  Walk left / right       A / D  (or arrows)    Drag on left side
+  Climb a ladder          W / S  (at a ladder)  Push up / down at ladder
+  Challenge a player      E                     Red CHALLENGE button
+  Accept a challenge      Y                     ACCEPT button
+  Run from a challenge    N                     RUN button
+  Look at a card          1 to 9                Tap the card
+  Meeting / Blood Test /  SPACE (at the         Round button left of
+    Cure machine            station)              the CHALLENGE button
+  Open the big map        M                     Tap the small map
+
+
+----------------------------------------------------------------
+13. THE MAP
+----------------------------------------------------------------
+
+   The facility is seen from the side, like a building cut open.
+   4 floors, 15 rooms. Use ladders to go up and down.
+
+   Floor 3   | Lab 1  | Research Lab | Lab 2 | Storage    |
+   Floor 2   | Medbay |     Central Hall     | Cure Lab   |
+   Ground    | Entrance | Lobby | Locker Room | Supply Room |
+   Basement  | Server Room | Cafeteria | Reactor | Quarantine |
+
+   LIGHTS: only the room you are in is fully lit. Rooms next to you
+   are dim. Far rooms are dark, so you cannot see who is inside.
+
+   10 DUEL TABLES (glowing blue, marked "DUEL") on every floor.
+   EMERGENCY BUTTON: Central Hall.  BLOOD TEST: Medbay.
+   CURE MACHINE: Cure Lab.  QUARANTINE CELL: basement, far right.
+
+
+----------------------------------------------------------------
+14. QUICK TIPS
+----------------------------------------------------------------
+
+   As a HUMAN
+   - Keep your Gun for someone you really suspect.
+   - A Cure is gold: it saves you AND reveals the zombie.
+   - Running can save your life. Head for a ladder.
+   - Watch for green tints, twitching and glowing footprints.
+   - Get a Blood Test before you accuse anyone: a badge makes people
+     believe you.
+   - Bitten? 45 seconds is enough to reach the Cure Lab. Go!
+
+   As a ZOMBIE
+   - Act normal. Do not chase everyone at once.
+   - Save your Zombie cards for humans you can catch.
+   - If you have no Zombie card, play numbers: you can't infect,
+     but you also can't be shot.
+   - Watch out: a human who plays a Gun might have guessed right.
+   - Do not go hungry: starving zombies glow for everyone.
+   - Duel your fellow zombies in front of humans. It looks normal.
+   - In meetings, accuse humans who have no badge.
+
+
+----------------------------------------------------------------
+15. NOT IN THE GAME YET (planned)
+----------------------------------------------------------------
+
+   - Online multiplayer with friends (next phase), with real chat in
+     meetings.
+   - Safe Handshake, extra roles (Medic, Detective, Traitor) and an
+     end-of-match recap.
+   - Events: Lights Out, Lockdown, Reactor Meltdown, Cure Lab, Broadcast.
+   - Zombies using vents.
+
+================================================================

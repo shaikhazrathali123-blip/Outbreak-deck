@@ -4,6 +4,7 @@ import Joystick from '../ui/Joystick.js';
 import SideMap from '../side/SideMap.js';
 import HandUI from '../ui/HandUI.js';
 import ChallengeButton from '../ui/ChallengeButton.js';
+import ActionButton from '../ui/ActionButton.js';
 import Toasts from '../ui/Toasts.js';
 
 const REASONS = {
@@ -13,9 +14,15 @@ const REASONS = {
   'target-stunned': 'STUNNED',
   ally: 'ALLY',
   busy: 'BUSY',
+  dead: 'DEAD',
 };
 
-/** Screen overlay: HUD, timer, hand, challenge button/prompts, map, joystick, film grain. */
+const clockText = (ms) => {
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};
+
+/** Screen overlay: HUD, timer, hand, role chip, challenge + station buttons, prompts, map, joystick, film grain. */
 export default class SideUIScene extends Phaser.Scene {
   constructor() {
     super('SideUIScene');
@@ -36,9 +43,10 @@ export default class SideUIScene extends Phaser.Scene {
     this.hud = new HUD(this);
     this.map = new SideMap(this, gs);
     this.joystick = new Joystick(this);
-    this.hand = new HandUI(this, { onUse: (cardId) => session.useYourCard(cardId) });
+    this.hand = new HandUI(this);
     this.toasts = new Toasts(this);
     this.challenge = new ChallengeButton(this, () => gs.challenge(gs.nearbyTarget()));
+    this.action = new ActionButton(this, () => session.doAction());
 
     // role badge under the location chip
     this.roleBg = this.add.graphics();
@@ -55,6 +63,14 @@ export default class SideUIScene extends Phaser.Scene {
 
     this.buildRequestPanel(session);
 
+    // chase: red heartbeat at the edges + RUN / CATCH banner
+    this.danger = this.add.image(0, 0, 'danger').setOrigin(0).setAlpha(0).setDepth(140);
+    this.chaseText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '26px', fontStyle: '700', color: '#ff4a5a' })
+      .setOrigin(0.5).setLetterSpacing(6).setDepth(141).setVisible(false);
+    this.chaseSub = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#ffd0d4' })
+      .setOrigin(0.5).setLetterSpacing(3).setDepth(141).setVisible(false);
+    this.chase = null;
+
     const onRoom = (room) => {
       this.hud.showRoom(room);
       this.map.setRoom(room);
@@ -68,7 +84,8 @@ export default class SideUIScene extends Phaser.Scene {
     const onOver = (r) => this.showOver(r);
     const subs = [
       ['room-changed', onRoom], ['hand-changed', onHand], ['toast', onToast], ['role-changed', onRole],
-      ['duel-open', onDuel], ['challenge-request', onRequest], ['challenge-cancel', onCancel], ['match-over', onOver],
+      ['duel-open', onDuel], ['chase', (c) => this.setChase(c)], ['you-died', (d) => this.showDeath(d)], ['challenge-request', onRequest], ['challenge-cancel', onCancel], ['match-over', onOver],
+      ['meeting', (open) => this.onMeeting(open)], ['you-quarantined', () => this.showDeath({ quarantined: true })],
     ];
     for (const [ev, fn] of subs) gs.events.on(ev, fn);
     if (gs.currentRoom !== undefined) onRoom(gs.currentRoom);
@@ -93,6 +110,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.hand.layout(width, height);
     this.toasts.layout(width, height);
     this.challenge.layout(width, height, 0);
+    this.action.layout(width, height);
     this.grain.setSize(width, height);
     this.hud.hint.setY(height - this.hand.height - 8);
     this.hud.drawHintBg();
@@ -105,18 +123,47 @@ export default class SideUIScene extends Phaser.Scene {
     this.hud.banner.setY((height < 480 ? 68 : 84) + 12);
     this.hud.bannerY = this.hud.banner.y;
     this.request.setPosition(width / 2, height * 0.42);
+    this.danger.setDisplaySize(width, height);
+    this.chaseText.setPosition(width / 2, height * 0.24);
+    this.chaseSub.setPosition(width / 2, height * 0.24 + 28);
   }
 
   setRole(role) {
     this.roleName = role;
-    this.role.setText(role === 'infected' ? 'INFECTED' : 'HUMAN').setColor(role === 'infected' ? '#3ee67a' : '#e9e4d6');
+    this.updateRoleChip();
+  }
+
+  /** Role chip: HUMAN (+ Clean badge time), BITTEN (turns in…), INFECTED (+ hunger). */
+  updateRoleChip() {
+    const session = this.gameScene.session;
+    const me = session.match.get(session.youId);
+    const now = session.clock();
+    let text = 'HUMAN';
+    let color = '#e9e4d6';
+    if (!me.alive) [text, color] = [me.quarantined ? 'QUARANTINED' : 'OUT', '#8a909c'];
+    else if (me.role === 'infected' && session.match.isStarving(me.id, now)) [text, color] = ['INFECTED  ·  STARVING', '#b4ff3a'];
+    else if (me.role === 'infected') [text, color] = [`INFECTED  ·  HUNGER ${clockText(me.hungerAt - now)}`, '#3ee67a'];
+    else if (me.turnsAt !== null) [text, color] = [`BITTEN  ·  TURNING IN ${clockText(me.turnsAt - now)}`, '#c6f03a'];
+    else if (session.match.hasBadge(me.id, now)) [text, color] = [`HUMAN  ·  ✚ CLEAN ${clockText(me.cleanUntil - now)}`, '#3ee6d0'];
+    if (text === this.role.text && color === this.roleColor) return;
+    this.roleColor = color;
+    this.role.setText(text).setColor(color);
     this.drawRole();
   }
 
   drawRole() {
-    const color = this.roleName === 'infected' ? 0x3ee67a : 0xe9e4d6;
+    const color = Phaser.Display.Color.HexStringToColor(this.roleColor ?? '#e9e4d6').color;
     const w = this.role.width + 26;
     this.roleBg.clear().fillStyle(UI.panel, 0.78).fillRoundedRect(12, 59, w, 22, 11).lineStyle(1, color, 0.6).strokeRoundedRect(12, 59, w, 22, 11);
+  }
+
+  /** A meeting pulls everyone to the Central Hall: hide the gameplay HUD while it runs. */
+  onMeeting(open) {
+    if (open) {
+      this.hideRequest();
+      this.setChase(null);
+    }
+    if (!this.dead) this.setPlaying(!open);
   }
 
   /** Big card at the start telling you your secret role. */
@@ -127,12 +174,12 @@ export default class SideUIScene extends Phaser.Scene {
     const color = infected ? '#3ee67a' : '#2fd2e0';
     const allies = session.match.list().filter((p) => p.role === 'infected' && p.id !== session.youId).map((p) => p.name);
     const lines = infected
-      ? ['Infect every human before the timer ends.', allies.length ? `Fellow infected: ${allies.join(', ')}` : 'You are the only infected. Spread the strain.']
-      : ['Stay human until the timer ends.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Trust no one.`; })()];
+      ? ['Play your ZOMBIE card in a duel to bite a human. Bite before your HUNGER runs out.', 'Beware of Guns and the Blood Test.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
+      : ['Stay human until the timer ends, or shoot every zombie with a GUN.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Blood Test in the Medbay, Emergency Button in the Central Hall.`; })()];
     const items = [];
     const bg = this.add.rectangle(0, 0, W, H, 0x020308, 0.78).setOrigin(0).setInteractive();
     items.push(bg);
-    items.push(this.add.text(W / 2, H * 0.36, 'YOUR ROLE', { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(8));
+    items.push(this.add.text(W / 2, H * 0.36, 'YOU ARE P1  ·  YOUR ROLE', { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(8));
     items.push(
       this.add.text(W / 2, H * 0.36 + 44, infected ? 'INFECTED' : 'HUMAN', { fontFamily: FONT, fontSize: H < 480 ? '40px' : '56px', fontStyle: '700', color })
         .setOrigin(0.5).setLetterSpacing(12).setShadow(0, 0, color, 24, false, true),
@@ -165,8 +212,8 @@ export default class SideUIScene extends Phaser.Scene {
       });
       return [g, t, z];
     };
-    const note = this.add.text(0, 58, 'Declining costs a random card', { fontFamily: FONT, fontSize: '11px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(2);
-    c.add([bg, title, bar, ...button(-70, 'ACCEPT  ·  Y', 0x9ffff4, true), ...button(70, 'DECLINE  ·  N', 0x6a707c, false), note]);
+    const note = this.add.text(0, 58, 'Run, and they get 8 seconds to catch you', { fontFamily: FONT, fontSize: '11px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(2);
+    c.add([bg, title, bar, ...button(-70, 'ACCEPT  ·  Y', 0x9ffff4, true), ...button(70, 'RUN  ·  N', 0xff7a3a, false), note]);
     bg.fillStyle(UI.panel, 0.95).fillRoundedRect(-160, -70, 320, 146, 14).lineStyle(1.5, 0xff4a5a, 0.8).strokeRoundedRect(-160, -70, 320, 146, 14);
     this.request = c;
     this.requestTitle = title;
@@ -197,6 +244,65 @@ export default class SideUIScene extends Phaser.Scene {
     this.add.text(W / 2, H / 2, text, { fontFamily: FONT, fontSize: '64px', fontStyle: '700', color }).setOrigin(0.5).setLetterSpacing(14).setShadow(0, 0, color, 28, false, true).setDepth(301);
   }
 
+  setChase(c) {
+    this.chase = c;
+    if (!c) {
+      this.chaseText.setVisible(false);
+      this.chaseSub.setVisible(false);
+      this.tweens.add({ targets: this.danger, alpha: 0, duration: 300 });
+      return;
+    }
+    const runner = c.role === 'runner';
+    this.chaseText.setColor(runner ? '#ff4a5a' : '#ff9a3a').setShadow(0, 0, runner ? '#ff2a3a' : '#ff7a1a', 16, false, true).setVisible(true);
+    this.chaseSub.setVisible(true);
+  }
+
+  /** Countdown text and a heartbeat pulse (two quick beats) while the chase lasts. */
+  updateChase(now, time) {
+    const c = this.chase;
+    if (!c || this.playing === false) {
+      if (!c) this.danger.setAlpha(Math.max(0, this.danger.alpha - 0.05));
+      return;
+    }
+    const left = Math.max(0, Math.ceil((c.until - now) / 1000));
+    if (c.role === 'runner') {
+      this.chaseText.setText(`RUN!  ${left}`);
+      this.chaseSub.setText(`${c.name} IS CHASING YOU  ·  CLIMB A LADDER TO LOSE THEM`);
+      const beat = (time % 800) / 800;
+      const pulse = Math.max(0, 1 - Math.abs(beat - 0.1) * 9) + 0.7 * Math.max(0, 1 - Math.abs(beat - 0.32) * 9);
+      this.danger.setAlpha(0.22 + 0.45 * pulse);
+      this.chaseText.setScale(1 + 0.06 * pulse);
+    } else {
+      this.chaseText.setText(now < c.startAt ? 'GET READY…' : `CATCH ${c.name}  ${left}`);
+      this.chaseSub.setText('TOUCH THEM TO FORCE THE DUEL');
+      this.danger.setAlpha(0);
+    }
+  }
+
+  /** You were shot or quarantined: show it, then let you watch or leave. */
+  showDeath({ by, quarantined = false }) {
+    this.dead = true;
+    this.setPlaying(false);
+    this.updateRoleChip();
+    const { width: W, height: H } = this.scale;
+    const title = quarantined ? 'QUARANTINED' : 'YOU WERE SHOT';
+    const line = quarantined ? 'The others voted you out. Watch the rest from the Quarantine Cell.' : `${by} had a Gun. Your team plays on without you.`;
+    const color = quarantined ? '#ff9a5a' : '#ff4a5a';
+    const items = [
+      this.add.rectangle(0, 0, W, H, 0x120206, 0.55).setOrigin(0),
+      this.add.text(W / 2, H * 0.38, title, { fontFamily: FONT, fontSize: '48px', fontStyle: '700', color }).setOrigin(0.5).setLetterSpacing(10).setShadow(0, 0, color, 24, false, true),
+      this.add.text(W / 2, H * 0.38 + 46, line, { fontFamily: FONT, fontSize: '15px', fontStyle: '600', color: '#e9c9cc' }).setOrigin(0.5).setLetterSpacing(1),
+    ];
+    for (const it of items) it.setDepth(250);
+    this.time.delayedCall(3500, () => this.tweens.add({ targets: items, alpha: 0, duration: 600 }));
+    const g = this.add.graphics().setDepth(250).fillStyle(0x30343d, 0.95).fillRoundedRect(W / 2 - 110, 50, 220, 34, 17);
+    const t = this.add.text(W / 2, 67, 'YOU ARE OUT  ·  LEAVE (L)', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#e9e4d6' }).setOrigin(0.5).setLetterSpacing(2).setDepth(251);
+    const leave = () => this.gameScene.scene.start('MenuScene');
+    this.add.zone(W / 2, 67, 220, 34).setInteractive({ useHandCursor: true }).setDepth(252).on('pointerup', leave);
+    this.input.keyboard?.once('keydown-L', leave);
+    this.deathChip = [g, t];
+  }
+
   /** Hide the gameplay HUD while a duel or the big map is open. */
   setPlaying(on) {
     this.playing = on;
@@ -206,6 +312,7 @@ export default class SideUIScene extends Phaser.Scene {
     for (const o of [this.role, this.roleBg]) o.setVisible(on);
     if (!on) {
       this.challenge.set(null);
+      this.action.set(null);
       this.showPrompt(null);
     }
   }
@@ -240,7 +347,10 @@ export default class SideUIScene extends Phaser.Scene {
 
     const left = Math.ceil(session.timeLeft() / 1000);
     this.timer.setText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`).setColor(left <= 30 ? '#ff4a5a' : '#ffffff');
-    if (this.playing === false || gs.mapOpen || session.over) return;
+    this.updateChase(gs.now(), time);
+    this.updateRoleChip();
+    if (this.playing === false || gs.mapOpen || session.over || session.meeting) return;
+    this.action.set(session.yourAction());
 
     // challenge button
     const target = gs.nearbyTarget();
@@ -250,13 +360,13 @@ export default class SideUIScene extends Phaser.Scene {
       this.challenge.set({ name: target.name, color: target.color, enabled: check.ok, note });
     } else this.challenge.set(null);
 
-    // prompts: stunned/frozen > refill > ladder
+    // prompts: stunned > refill > ladder
     const touch = this.sys.game.device.input.touch;
     const ladder = gs.nearbyLadder();
     const me = gs.match.get(gs.youId);
     const now = gs.now();
     if (now < me.stunnedUntil) this.showPrompt(`STUNNED  ${Math.ceil((me.stunnedUntil - now) / 1000)}`);
-    else if (now < me.frozenUntil) this.showPrompt(`FROZEN  ${Math.ceil((me.frozenUntil - now) / 1000)}`);
+    else if (session.stationHint) this.showPrompt(session.stationHint);
     else if (gs.refillHint) this.showPrompt(gs.refillHint);
     else if (ladder && !gs.busy) {
       const up = ladder.lower === gs.state.floor;

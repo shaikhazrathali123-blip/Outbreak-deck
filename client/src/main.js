@@ -8,6 +8,7 @@ import SideScene from './scenes/SideScene.js';
 import SideUIScene from './scenes/SideUIScene.js';
 import DuelScene from './scenes/DuelScene.js';
 import ResultScene from './scenes/ResultScene.js';
+import MeetingScene from './scenes/MeetingScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -20,8 +21,8 @@ const config = {
   },
   input: { activePointers: 3 }, // multi-touch for the joystick + future buttons
   fps: { target: 60 },
-  // Later scenes draw on top: game world, then HUD, then the duel close-up.
-  scene: [BootScene, MenuScene, SideScene, SideUIScene, DuelScene, ResultScene],
+  // Later scenes draw on top: game world, then HUD, then the duel close-up, then meetings.
+  scene: [BootScene, MenuScene, SideScene, SideUIScene, DuelScene, MeetingScene, ResultScene],
 };
 
 // The building art is painted once at startup, so wait for the font first.

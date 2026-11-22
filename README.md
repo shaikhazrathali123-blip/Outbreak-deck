@@ -74,23 +74,23 @@ At the start of each match, roles are secretly assigned.
 
 ### 🧍 Human
 - The majority role.
-- Goal: stay uninfected until the timer ends, or unlock the cure.
+- Goal: stay uninfected until the timer ends, or shoot every zombie with a **Gun**.
 - Can see only their own role.
 
 ### 🧟 Infected
 - Starts as 1 player (6–8 players), 2 players (9–12 players) or 3 players (13–15 players).
-- Goal: infect every human before the timer ends.
+- Goal: infect every human before the timer ends, using **Zombie** cards.
 - Can see other infected players (green outline only they can see).
 - Looks exactly like a human to everyone else at first.
 
 ### 🩺 Medic (optional role, Phase 5)
 - One human may be secretly assigned as Medic.
-- Starts with 2 Vaccine cards instead of 1.
+- Starts with an extra Cure card.
 - Can cure one infected player per match by winning a duel against them.
 
 ### 🕵️ Scout (optional role, Phase 5)
 - One human may be a Scout.
-- Can use the Scanner card twice instead of once.
+- Starts with an extra Gun card.
 
 ---
 
@@ -112,33 +112,47 @@ At the start of each match, roles are secretly assigned.
 ### 3. Challenging a player
 - Walk close to another player. A **⚔ Challenge** button appears.
 - Tap it to send a challenge.
-- The other player has **5 seconds** to accept or decline.
-- **Declining costs 1 random card.** You can't run forever.
+- The other player has **5 seconds** to **ACCEPT** or **RUN**. No answer = run.
+- **Running starts a chase:** after a ~1 second head start, the challenger has **8 seconds** to catch the runner. The chaser is slightly faster. **Touching the runner forces the duel.** If the runner gets away (ladders help), neither can be challenged for a few seconds.
 - If accepted, both players walk to the nearest **Duel Table** automatically and the duel begins.
 
 ### 4. Duel outcomes
 
-| Who duels | Winner | Loser |
-|---|---|---|
-| Human vs Human | Takes 1 card from loser | Loses 1 card |
-| Infected vs Human (Infected wins) | Spreads infection | **Becomes Infected** (unless Vaccine) |
-| Infected vs Human (Human wins) | Gets a **Clue** (see below) | Infected is **stunned for 15 seconds** |
-| Infected vs Infected | Not allowed (they know each other) | — |
+Both players pick one card in 5 seconds; both flip at once (see **Cards** below).
 
-**Played cards:** in every decided duel the winner keeps their own card and takes the loser's played card. A draw returns both cards.
+| Cards played | Result |
+|---|---|
+| Number vs Number | Higher number wins and **takes the loser's card**. Same number = draw. |
+| Zombie vs Number | Zombie wins: the human is **bitten** and turns 45 seconds later (unless they hold a **Cure**) |
+| Gun vs Zombie | Gun wins: the zombie is **shot** and is out of the match |
+| Gun vs Number | The Gun **misfires**: the number wins, **everyone hears it**, and the shooter is **stunned 12 seconds** |
+| Same special vs same special | Draw |
+| Infected vs Infected | A **fake duel**: it looks like any duel from outside, but both keep their cards |
 
-**Stunned:** a stunned player can't move or duel until the stun ends.
+**Clue:** when a human beats an infected player **with a number card**, they get a private hint like *"Your opponent's hands felt cold..."*, and the infected is **stunned for 12 seconds** (can't move or duel). A human who beats another human gets the same kind of hint 20% of the time, so a clue is never proof.
 
-**Clue:** When a human beats an infected player, they get a private hint like *"Your opponent's hands felt cold..."* This tells them the player is suspicious, but not 100% confirmed (it has a 20% chance of being a false clue). In the game, a human who beats another human gets the same kind of hint 20% of the time, so a clue is never proof.
+**Shot players** fall to the floor where everyone can see them, and every player is told who was shot.
 
-### 5. Becoming infected
-- When infected, you get a private message: **"You have been infected. Spread the strain."**
-- You now play for the Infected team.
-- Your character slowly shows **subtle signs** over 60 seconds: slight green tint, small twitch animation, footprints glowing faintly.
-- Sharp-eyed players can spot these signs.
+### 5. Getting bitten (incubation)
+- A Zombie card **bites** you. You get **45 seconds** before you turn. You still play as a human until then, and only you (and the biter) know.
+- Your choice: **run to the Cure Lab** machine (stand still 6 seconds; it then needs 60 seconds to recharge, and anyone nearby sees you use it), **warn people** in a meeting, or **hide it**.
+- Picking up a Cure card while bitten cures you at once.
+- When the time runs out you **turn**: a Zombie card grows in your hand and you play for the Infected team.
+- After turning, your character slowly shows **subtle signs** over 60 seconds: slight green tint, small twitch animation, footprints glowing faintly.
+- Meetings pause the incubation clock (like every other timer).
+
+### 5b. Hunger
+- An infected player must bite someone at least every **90 seconds**.
+- After that they are **STARVING**: they glow bright green for everyone, their signs are at full strength, and a hungry growl from their room is announced every 20 seconds. A bite feeds them and resets the timer.
+
+### 5c. Blood Test and the Clean badge
+- The **Blood Test** booth is in the **Medbay** (floor 2). Press it and stand still 4 seconds.
+- **Clean:** you get a **Clean badge** that everyone sees over your head for **60 seconds**.
+- **Positive** (infected *or* bitten): the whole facility is told.
+- The badge only proves you were clean **when you took the test**. Were they tested before or after they met the zombie?
 
 ### 6. Running out of cards
-- If you have **0 cards** (or only special cards that can't be played in a duel), you are **Exhausted**.
+- If you have no card you can play in a duel (only a Cure, or nothing), you are **Exhausted**.
 - Exhausted players can't challenge or be challenged.
 - Go to a **card refill** (Supply Room, Storage or Cafeteria) to refill to 4 cards (takes 5 seconds of standing still).
 
@@ -146,90 +160,36 @@ At the start of each match, roles are secretly assigned.
 - After a duel, both players have a **10-second cooldown** before they can duel again.
 - This stops players from spam-challenging.
 
-### 8. Emergency meetings
-- Any player can press the **🚨 Emergency Button** in the Central Hall (once per player per match).
-- All players are teleported to the hall.
-- 45 seconds of chat discussion, then a vote.
-- The player with the most votes is **Quarantined** (sent to the Quarantine Cell, out of the match but can still watch).
-- Ties = nobody is quarantined.
+### 8. Emergency meetings and voting
+- Any player can press the **🚨 Emergency Button** in the Central Hall: **once per player per match**, not in the first 30 seconds, and not within 30 seconds of the last meeting.
+- Everyone still in the match is pulled into the hall. **The match clock pauses** (and so do incubation, hunger, badges, cooldowns and stuns).
+- **30 seconds of discussion** with quick chat: *Accuse X*, *Vouch for X*, *I'm clean*, *I was bitten (by X)*, *Skip*. Anyone can lie. A badge is public, so claiming to be clean without one is a lie everyone can see.
+- **15 seconds of voting**: vote for a player or skip.
+- The player with the most votes is **Quarantined** (locked in the Quarantine Cell, out of the match, can still watch). Their role is **not revealed**.
+- A tie, or as many skips as top votes = nobody is quarantined.
+- Bots talk too: humans share their evidence (clues, Cure saves, signs, misfires, who used the Cure machine); infected lie, counter-accuse and frame humans without badges.
 
 ---
 
 ## 🃏 Cards
 
-### Number cards
-The deck uses four original suits instead of standard playing card suits:
+Only **four kinds** of card, so anyone can learn them in a minute. The tension comes from the chase, the dark rooms and guessing who to trust.
 
-| Suit | Symbol | Strong against | Theme |
-|---|---|---|---|
-| **Blade** | 🗡 | Shield | Attack |
-| **Shield** | 🛡 | Toxin | Defense |
-| **Toxin** | ☣ | Mind | Poison |
-| **Mind** | 🧠 | Blade | Intelligence |
-
-- Each suit has cards numbered **1 to 10**.
-- **Suit advantage:** if your suit is strong against your opponent's suit, you get **+3** to your card value.
-- Example: Blade 5 vs Shield 7 → Blade gets +3 = 8, so Blade wins.
-
-### Special cards
-Special cards are shuffled into the deck (about 1 in 8 cards).
-
-| Card | Effect | When to use |
+| Card | Who has it | What it does |
 |---|---|---|
-| 💉 **Vaccine** | Blocks one infection. Automatically used if you lose to an infected player. | Passive |
-| 🔍 **Scanner** | Secretly reveals if a nearby player is infected (90% accurate). | Any time |
-| 🔄 **Swap** | Trade one random card with a nearby player. | Any time |
-| 🛑 **Freeze** | Target player can't move for 5 seconds. | Any time |
-| 👻 **Decoy** | Creates a fake copy of you for 10 seconds to confuse others. | Any time |
-| 🃏 **Wild** | Counts as any suit with value 8 in a duel. | During a duel |
-| 🔦 **Flare** | Lights up the area around you during Lights Out. | During events |
+| **1 – 9** | Everyone | Duel power. Higher number wins. |
+| 🧟 **Zombie** | Infected only | Beats **any** number card and **bites** the loser (they turn 45 seconds later). Used up when played. Infected start with 2 and grow a new one every **40 seconds** (max 2). |
+| 🔫 **Gun** | Rare (3 per deck) | **Kills** a player who plays a Zombie card. Against a number card it **misfires**: you lose, everyone hears it, and you are stunned 12 seconds. A bluff with a price. |
+| 💉 **Cure** | Rare (3 per deck) | Automatic: if a Zombie card would bite you, the Cure is used instead and you stay human (and you now know the attacker is infected). Picked up while bitten, it cures you. |
 
-### Infected-only cards
-Infected players get 1 of these at random when infected:
-
-| Card | Effect |
-|---|---|
-| 🦠 **Spore** | Your next duel win infects the loser even if they have a Vaccine. |
-| 🎭 **Mask** | Hides your infection signs for 60 seconds. |
-| 📢 **Rumor** | Sends a fake clue about a random human to all players. |
+- Each player starts with **7 cards** from a shuffled deck (four of each number 1–9, plus Guns and Cures; big lobbies use extra decks).
+- Zombie cards are never in the deck: only infected players grow them.
 
 ---
 
-## ⚔ Duel Challenges
+## ⚔ Duel Tables
 
-Every Duel Table in the facility has a **challenge type**. The table's color shows which one it is. This keeps duels fresh instead of always "highest card wins".
-
-### 1. 🔢 High Card (white tables)
-- Both players pick 1 card face down.
-- Cards flip at the same time.
-- Highest value (after suit advantage) wins.
-- **Time limit:** 5 seconds to choose.
-
-### 2. 🎲 Bluff Bet (red tables)
-- Both players pick 1 card face down.
-- Each player then **claims** a value out loud (any number 1–10).
-- Each player chooses: **Believe** or **Call Bluff**.
-  - Call bluff correctly → you win.
-  - Call bluff wrongly → you lose.
-  - Both believe → compare real cards.
-- Best for liars and infected players.
-
-### 3. 🧠 Memory Match (blue tables)
-- 8 face-down cards appear in a grid.
-- Players take turns flipping 2 cards to find pairs.
-- First to find **2 pairs** wins.
-- **Time limit:** 30 seconds.
-
-### 4. ⚡ Reflex Draw (yellow tables)
-- Both players place a card.
-- A countdown runs: 3… 2… 1… **DRAW!**
-- The first to tap gets **+2** to their card value.
-- Tapping before DRAW = automatic loss.
-
-### 5. 🤝 Double or Nothing (purple tables, rare)
-- Both players put **2 cards** in.
-- Total value wins.
-- The winner takes **both** of the loser's cards.
+There is one kind of duel: pick a card, flip, see the table above. The 10 duel tables (glowing blue, marked **DUEL**) are spread over all 4 floors so a challenge never needs a long walk. *(The earlier idea of five table types, such as Bluff Bet and Memory Match, was dropped to keep the game simple.)*
 
 ---
 
@@ -249,15 +209,7 @@ Every Duel Table in the facility has a **challenge type**. The table's color sho
 >
 > **Basement rooms:** Server Room (security cameras), Cafeteria (2 duel tables + a card refill), Reactor (the 2 pressure pads for Reactor Meltdown), Quarantine Cell (where voted-out players go).
 >
-> **Duel tables (10):**
->
-> | Challenge | Colour | Where |
-> |---|---|---|
-> | High Card | White | Central Hall ×2, Cafeteria |
-> | Bluff Bet | Red | Locker Room, Cafeteria |
-> | Memory Match | Blue | Lab 2, Server Room |
-> | Reflex Draw | Yellow | Lobby, Storage |
-> | Double or Nothing | Purple (rare) | Reactor |
+> **Duel tables (10):** Central Hall ×2, Cafeteria ×2, Lobby, Locker Room, Lab 2, Storage, Server Room, Reactor.
 >
 > **Card refills:** Supply Room, Storage and Cafeteria.
 > Layout lives in `client/src/side/facility.js`.
@@ -301,10 +253,10 @@ Random events happen during each match to keep things tense. One event triggers 
 
 | Team | Wins if… |
 |---|---|
-| 🧍 **Humans** | At least 1 human is uninfected when the timer hits 0 |
-| 🧍 **Humans** | 3 humans successfully use the Cure Lab |
-| 🧍 **Humans** | All infected players are quarantined by voting |
-| 🧟 **Infected** | Every human is infected or quarantined |
+| 🧍 **Humans** | At least 1 human is **not bitten** when the timer hits 0 |
+| 🧍 **Humans** | Every infected player has been shot or quarantined, and nobody is still bitten |
+| 🧟 **Infected** | Every human has turned, been shot or been quarantined |
+| 🧟 **Infected** | The timer hits 0 and every human left is bitten |
 
 **Rewards after each match:**
 - XP for playing, winning, infecting, surviving and correct votes.
@@ -321,10 +273,10 @@ Random events happen during each match to keep things tense. One event triggers 
 | Climb ladder | Push joystick up/down at a ladder | W/S or arrow keys |
 | Map | Tap the map | M |
 | Challenge | ⚔ button | E |
-| Use special card | Tap card in hand | 1–7 keys |
-| Use room object | 👆 Use button | F |
-| Emergency meeting | 🚨 button (Central Hall only) | Space |
-| Chat (meetings only) | Chat box | Enter |
+| Accept / run from a challenge | ACCEPT / RUN buttons | Y / N |
+| Look at a card | Tap card in hand | 1–9 keys |
+| Emergency meeting / Blood Test / Cure machine | Round button next to ⚔ (at the station) | Space |
+| Meeting chat and vote | Tap a player, then a quick-chat or VOTE button | Mouse |
 
 ---
 
@@ -524,6 +476,39 @@ Each phase ends with something you can **play and test**. Don't start the next p
 
 ---
 
+### Phase 3.5: Simple Cards and Chases
+**Goal:** easy to learn, tense to play.
+
+**Tasks:**
+- [x] Cut the cards down to four kinds: numbers 1–9, Zombie, Gun, Cure (suits and the other special cards removed)
+- [x] Zombie cards: infected-only, grow back every 40 seconds (max 2)
+- [x] Gun kills a zombie, misfires against a number; humans also win by shooting every zombie
+- [x] Declining becomes a chase: 8 seconds to catch the runner, touching forces the duel
+- [x] Red heartbeat when you're being chased; shot players drop to the floor
+- [x] Bots run, chase, play Zombie cards and use Guns on players they strongly suspect
+
+**✅ Done when:** a new player understands the cards from one look at their hand.
+
+---
+
+### Phase 3.6: The Mind Game
+**Goal:** turn the duel game into a mind game. Humans get information and time; zombies get places to hide but lose their safety.
+
+**Tasks:**
+- [x] Emergency meetings: Emergency Button, 30s quick-chat discussion, 15s vote, Quarantine Cell (`MeetingScene`)
+- [x] Bots talk in meetings (evidence, denials, lies, framing) and vote on their suspicion
+- [x] Blood Test booth in the Medbay; public Clean badge for 60 seconds; positives are announced
+- [x] Incubation: bitten humans turn after 45 seconds; Cure Lab machine (recharges 60s) or a Cure card saves them
+- [x] Gun misfires are public and stun the shooter for 12 seconds
+- [x] Hunger: infected must bite every 90 seconds or start STARVING (visible glow + growls)
+- [x] Fake duels between infected players (they keep their cards)
+
+**Starting numbers for playtesting** (all in `RULES`): incubation 45s, Clean badge 60s, hunger 90s, Zombie regrow 40s. Target ~50% human wins. If zombies win too much, make incubation longer or hunger shorter; if humans win too much, do the opposite.
+
+**Later (after the core 5 work):** Safe Handshake, extra roles (Medic, Detective, Traitor), an end-of-match recap (the easy, fun first extra).
+
+---
+
 ### Phase 4: Online Multiplayer
 **Time:** 3–4 weeks
 **Goal:** play with friends on different phones.
@@ -566,25 +551,23 @@ Each phase ends with something you can **play and test**. Don't start the next p
 - [ ] Reactor Meltdown event
 - [ ] Cure Lab event
 - [ ] Broadcast event
-- [ ] Emergency meetings with text chat and voting (`MeetingScene`)
-- [ ] Quarantine Cell
-- [ ] Remaining duel challenges: Bluff Bet, Memory Match, Reflex Draw, Double or Nothing
+- [x] Emergency meetings with quick chat and voting (`MeetingScene`, done in Phase 3.6; real text chat comes with multiplayer)
+- [x] Quarantine Cell
+- [x] ~~Remaining duel challenges~~ (dropped: one simple duel keeps the game easy to learn)
 - [ ] Vents for infected
 - [ ] Server Room cameras
-- [ ] Medbay self-scan
+- [x] Medbay self-scan (the Blood Test, Phase 3.6)
 - [ ] Optional roles: Medic and Scout
 - [ ] Host settings: timer length, number of infected, events on/off
 
 **Claude Code prompts:**
 > Create a server-side EventSystem that triggers one random event every 60–90 seconds: Lights Out, Lockdown, Reactor Meltdown, Cure Lab and Broadcast, following the rules in README.md.
 
-> Add emergency meetings with a 45-second chat and voting phase, and a Quarantine Cell for voted-out players.
 
-> Add Bluff Bet, Memory Match, Reflex Draw and Double or Nothing duel challenges, selected by the color of each Duel Table.
 
 **Testing checklist:**
 - [ ] Each event works in multiplayer
-- [ ] Voting can't be abused (one vote per player)
+- [x] Voting can't be abused (one vote per player)
 - [ ] Balance: humans and infected each win about 45–55% of matches
 
 **✅ Done when:** testers say "one more match!" 🎉
@@ -598,7 +581,7 @@ Each phase ends with something you can **play and test**. Don't start the next p
 **Tasks:**
 - [ ] Final art style (pick one: neon cyberpunk, pixel horror or paper cutout)
 - [ ] Character skins (at least 8 colors)
-- [ ] Card art for all suits and special cards
+- [ ] Final card art for numbers, Zombie, Gun and Cure
 - [ ] Sound effects (footsteps, card flips, infection, alarms)
 - [ ] Background music (menu + match)
 - [ ] Interactive tutorial (play a short match with explained steps)
@@ -701,7 +684,7 @@ Each phase ends with something you can **play and test**. Don't start the next p
 | One team wins too often | Track win rates, adjust timers, infected count and card balance |
 | Toxic chat | Quick-chat presets, chat filter, report button |
 | Project feels too big | Finish one phase at a time, test before moving on |
-| Copyright problems | Use original story, names, suits and art |
+| Copyright problems | Use original story, names, cards and art |
 
 ---
 

@@ -53,6 +53,14 @@ export function createTextures(scene) {
       }
     }
   });
+  // red heartbeat around the screen edges while you are being chased
+  canvas(scene, 'danger', 256, 256, (c) => {
+    const g = c.createRadialGradient(128, 128, 60, 128, 128, 182);
+    g.addColorStop(0, 'rgba(255,40,60,0)');
+    g.addColorStop(1, 'rgba(255,40,60,1)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 256, 256);
+  });
   canvas(scene, 'rain', 2, 18, (c) => {
     const g = c.createLinearGradient(0, 0, 0, 18);
     g.addColorStop(0, 'rgba(190,215,255,0)');
