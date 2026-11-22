@@ -101,7 +101,7 @@ At the start of each match, roles are secretly assigned.
 2. Each player picks a character skin and name.
 3. The server secretly assigns roles.
 4. Each player receives **7 cards** from a shuffled deck.
-5. Players spawn in the **Central Hall**.
+5. Players spawn spread across the **Central Hall**, and a role card tells each player their secret role (infected players also see who their allies are).
 6. The match timer starts (default: **6 minutes**).
 
 ### 2. Moving around
@@ -496,18 +496,18 @@ Each phase ends with something you can **play and test**. Don't start the next p
 **Goal:** a complete match against bots.
 
 **Tasks:**
-- [ ] `Bot` class: wanders between rooms using pathfinding
-- [ ] Bots challenge nearby players and accept/decline challenges
-- [ ] Bot difficulty levels (easy, normal, hard)
-- [ ] Infected bots act normal and target humans
-- [ ] Role assignment at match start
-- [ ] Match timer (6 minutes) in the HUD
-- [ ] All special cards working (Scanner, Swap, Freeze, Decoy, Wild, Flare)
-- [ ] Infected-only cards (Spore, Mask, Rumor)
-- [ ] Infection visual signs (green tint, twitch, glowing footprints)
-- [ ] Clue messages for humans
-- [ ] Win/lose `ResultScene` with stats
-- [ ] Main menu with "Play vs Bots" button
+- [x] `Bot` class: wanders between rooms using pathfinding
+- [x] Bots challenge nearby players and accept/decline challenges
+- [x] Bot difficulty levels (easy, normal, hard)
+- [x] Infected bots act normal and target humans (they lie low for a while after each infection)
+- [x] Role assignment at match start
+- [x] Match timer (6 minutes) in the HUD (4 / 6 / 8 minutes in the menu)
+- [x] Special cards working: Scanner, Swap, Freeze, Decoy, Wild (Flare waits for the Lights Out event in Phase 5)
+- [x] Infected-only cards (Spore, Mask, Rumor)
+- [x] Infection visual signs (green tint, twitch, glowing footprints)
+- [x] Clue messages for humans
+- [x] Win/lose `ResultScene` with stats
+- [x] Main menu with "Play vs Bots" button
 
 **Claude Code prompts:**
 > Create a Bot class with pathfinding between rooms. Bots should challenge players nearby, accept or decline challenges, and infected bots should prefer targeting humans. Add easy, normal and hard difficulty.
@@ -515,9 +515,9 @@ Each phase ends with something you can **play and test**. Don't start the next p
 > Add role assignment, a 6-minute match timer, all special cards from README.md, infection visual signs, and a ResultScene that shows the winning team and stats.
 
 **Testing checklist:**
-- [ ] Bots don't get stuck in walls
-- [ ] Full match runs from start to result screen
-- [ ] Both teams can actually win
+- [x] Bots don't get stuck in walls (side view: bots walk floors and climb ladders)
+- [x] Full match runs from start to result screen
+- [x] Both teams can actually win (test matches with 7 normal bots: humans held out to 6:00; infected won at 5:26). Tune in `client/src/game/BotBrain.js` → DIFFICULTY
 - [ ] Play 10 matches and note anything boring or unfair
 
 **✅ Done when:** you have a fun, complete single-player game. **Show it to friends here and get feedback.**

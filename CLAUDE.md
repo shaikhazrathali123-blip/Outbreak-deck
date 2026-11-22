@@ -22,9 +22,8 @@ adding a feature. This file only gives a short summary and the current state of 
 - `npm run dev`: dev server on port 5173, reachable from a phone on the same Wi-Fi.
 - `npm run build`: production build into `dist/`.
 - `npm test`: unit tests for the shared rules (`tests/*.test.js`, Node's built-in test runner).
-- URL options: `?crowd=15` puts 15 survivors in the Central Hall (meeting preview);
-  `?role=infected` starts you infected; `?hand=0` starts you with N cards (test running out);
-  `?seed=7` makes the deck repeatable;
+- URL options:   `?role=infected` / `?role=human` forces your role; `?hand=0` starts you with N cards (test running out);
+  `?seed=7` makes roles and the deck repeatable;
   `?fx=low` / `?fx=high` forces bloom off/on (off by default on phones).
 
 ## Look ("ink & neon", premium pass)
@@ -38,8 +37,9 @@ adding a feature. This file only gives a short summary and the current state of 
 - `shared/cards.js`: seeded RNG, decks (4 suits × 1–10 + one of each special, × copies for big lobbies),
   `isPlayable` (numbers + Wild), card names.
 - `shared/duel.js`: suit advantage and `resolveHighCard` (Wild = 8 with the best suit).
-- `shared/match.js`: `Match` holds every player's hand/role/cooldown/stun: `canChallenge`, `decline`,
-  `settleDuel` (card transfer, infection or Vaccine, clue + stun), `refill`. Times are passed in.
+- `shared/match.js`: `assignRoles()` + `Match`, which holds every player's hand/role/cooldowns/stats:
+  `canChallenge`, `decline`, `settleDuel` (card transfer, infection or Vaccine, clue + stun), `useCard`
+  (Scanner, Swap, Freeze, Decoy, Spore, Mask, Rumor), `refill`, `winner()`. Times are passed in.
 - Rule numbers live in `RULES` in `shared/constants.js` (hand size, cooldown, stun, ranges...).
 - Exhausted = no card you can play in a duel. Winner takes the loser's played card in every decided duel.
 
@@ -52,10 +52,16 @@ adding a feature. This file only gives a short summary and the current state of 
 - `side/textures.js`: glow, light wash, hologram, rain and film-grain textures.
 - `side/SideMap.js`: building map, small in the corner; M / tap for the big one with legend.
 - `scenes/BootScene.js` builds textures → `MenuScene` (title) → `SideScene` + `SideUIScene`.
-- `scenes/SideScene.js`: walking/climbing controller (no physics), lights, signs, weather, room lighting,
-  the match + dummy players (P2 human in the Lobby, P3 secretly infected in the Central Hall),
-  challenge → walk to the nearest duel table → DuelScene, refills. Emits `room-changed`, `hand-changed`,
-  `toast`, `role-changed`, `duel-open`.
+- `scenes/SideScene.js`: draws the world (lights, signs, weather, room darkness, camera) and owns a Session.
+  Emits `room-changed`; the Session emits `hand-changed`, `toast`, `role-changed`, `duel-open`,
+  `challenge-request`, `challenge-cancel`, `match-over`.
+- `game/Session.js`: one match: you + bots, roles, challenges (you answer with Y/N), walking to the nearest
+  free duel table, bot-vs-bot duels, special cards, infection signs, refills, timer, win check.
+- `game/BotBrain.js`: bot AI (wander, hunt, refill, use cards, suspicion from clues/rumours/signs) and the
+  DIFFICULTY table (think speed, aggression, card smarts, sight, hunt/lurk, sign noticing).
+- `side/Actor.js`: a survivor (sprite, tag, walk/climb controller). `side/Navigator.js`: floor-to-floor routes via ladders.
+- `scenes/ResultScene.js`: winning team, your result, every player's role and stats; Play again / Menu.
+- `scenes/MenuScene.js`: Play vs Bots with bots (5–14), difficulty, match length (saved in localStorage).
 - `scenes/DuelScene.js`: card-table close-up for High Card (5s to pick, flip, result lines).
 - `scenes/SideUIScene.js`: HUD, role badge, hand, challenge button, toasts, prompts, joystick, film grain.
 - `ui/cardArt.js`: card faces/back drawn in code (suit icons, special icons). `ui/HandUI.js`, `ui/ChallengeButton.js`, `ui/Toasts.js`.
@@ -65,6 +71,6 @@ adding a feature. This file only gives a short summary and the current state of 
   15 PLAYER_COLORS, DUEL_CHALLENGES (name + colour).
 
 ## Status
-- Phases 0–2 are done (setup, map/movement, cards and duels vs dummies). Next: Phase 3 (bots and a full single-player match).
-- Every table plays High Card for now; the other 4 challenge types come in Phase 5. Special cards other than
-  Vaccine and Wild are shown but not usable yet (Phase 3).
+- Phases 0–3 are done: a full single-player match vs bots. Next: Phase 4 (online multiplayer).
+- Every table plays High Card for now; the other 4 challenge types come in Phase 5. Flare is not usable until
+  Lights Out (Phase 5). Balance is tuned in BotBrain DIFFICULTY; play-test more matches to fine-tune.

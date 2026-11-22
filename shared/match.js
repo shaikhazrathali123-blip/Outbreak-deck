@@ -1,7 +1,7 @@
-// Match state and rules: hands, challenges, duel results, infection, cooldowns,
-// refills. Pure logic with no rendering, so the server can run it in Phase 4.
-// Times are passed in (ms) so the rules are easy to test.
-import { RULES } from './constants.js';
+// Match state and rules: roles, hands, challenges, duel results, infection,
+// special cards, cooldowns, refills and win conditions. Pure logic with no
+// rendering, so the server can run it in Phase 4. Times are passed in (ms).
+import { RULES, infectedCount } from './constants.js';
 import { createRng, createDeck, decksFor, shuffle, isPlayable, randomInfectedCard } from './cards.js';
 import { resolveHighCard } from './duel.js';
 
@@ -12,19 +12,47 @@ const CLUES = [
   'They flinched away from the light.',
 ];
 
+/** Special cards you can activate from your hand (Vaccine and Wild work on their own). */
+export const USABLE = {
+  scanner: { target: true },
+  swap: { target: true },
+  freeze: { target: true },
+  decoy: { target: false },
+  spore: { target: false },
+  mask: { target: false },
+  rumor: { target: false },
+};
+
+/** Pick which player ids start infected (1 for 6–8 players, 2 for 9–12, 3 for 13–15). */
+export function assignRoles(ids, rng) {
+  const infected = new Set(shuffle(ids, rng).slice(0, infectedCount(ids.length)));
+  return Object.fromEntries(ids.map((id) => [id, infected.has(id) ? 'infected' : 'human']));
+}
+
 export class Match {
   /**
    * @param {object} o
    * @param {{id:string,name:string,color:string,role:'human'|'infected'}[]} o.players
    * @param {number} [o.seed]
    */
-  constructor({ players, seed = Date.now(), handSize = RULES.handSize }) {
+  constructor({ players, seed = Date.now(), handSize = RULES.handSize, now = 0 }) {
     this.rng = createRng(seed);
     this.deck = createDeck(this.rng, decksFor(players.length));
     this.discard = [];
     this.players = new Map();
     for (const p of players) {
-      const player = { ...p, hand: [], cooldownUntil: 0, stunnedUntil: 0, infectedAt: p.role === 'infected' ? 0 : null };
+      const player = {
+        ...p,
+        hand: [],
+        cooldownUntil: 0,
+        stunnedUntil: 0,
+        frozenUntil: 0,
+        maskedUntil: 0,
+        sporeArmed: false,
+        infectedAt: p.role === 'infected' ? now : null,
+        startedInfected: p.role === 'infected',
+        stats: { duels: 0, won: 0, lost: 0, infections: 0, cardsUsed: 0 },
+      };
       player.hand = this.draw(handSize);
       if (player.role === 'infected') player.hand.push(randomInfectedCard(this.rng));
       this.players.set(p.id, player);
@@ -35,6 +63,19 @@ export class Match {
     const p = this.players.get(id);
     if (!p) throw new Error(`Unknown player ${id}`);
     return p;
+  }
+
+  list() {
+    return [...this.players.values()];
+  }
+
+  humans() {
+    return this.list().filter((p) => p.role === 'human');
+  }
+
+  /** 'infected' once nobody human is left, otherwise null (humans win when time runs out). */
+  winner() {
+    return this.humans().length === 0 ? 'infected' : null;
   }
 
   draw(n) {
@@ -99,10 +140,20 @@ export class Match {
     return playable[Math.floor(this.rng() * playable.length)] ?? null;
   }
 
+  infect(p, by, now) {
+    p.role = 'infected';
+    p.infectedAt = now;
+    const card = randomInfectedCard(this.rng);
+    p.hand.push(card);
+    by.stats.infections++;
+    return card;
+  }
+
   /**
    * Play out a High Card duel. Returns everything that happened, for the UI.
    * Winner takes the loser's played card. Infected beats human: infection
-   * (or a Vaccine is used up). Human beats infected: clue + 15s stun.
+   * (or a Vaccine is used up, unless the winner armed a Spore).
+   * Human beats infected: clue + 15s stun.
    */
   settleDuel(aId, bId, cardIdA, cardIdB, now) {
     const check = this.canChallenge(aId, bId, now);
@@ -115,6 +166,8 @@ export class Match {
     const out = { result, cards: { [aId]: cardA, [bId]: cardB }, winnerId: null, loserId: null, effects: [] };
     a.cooldownUntil = now + RULES.duelCooldown;
     b.cooldownUntil = now + RULES.duelCooldown;
+    a.stats.duels++;
+    b.stats.duels++;
 
     if (!result.winner) {
       a.hand.push(cardA);
@@ -125,20 +178,21 @@ export class Match {
     const [winner, loser, wCard, lCard] = result.winner === 'a' ? [a, b, cardA, cardB] : [b, a, cardB, cardA];
     out.winnerId = winner.id;
     out.loserId = loser.id;
+    winner.stats.won++;
+    loser.stats.lost++;
     winner.hand.push(wCard, lCard);
     out.effects.push({ type: 'card-taken', from: loser.id, to: winner.id, card: lCard });
 
     if (winner.role === 'infected' && loser.role === 'human') {
       const vaccineAt = loser.hand.findIndex((c) => c.kind === 'special' && c.type === 'vaccine');
-      if (vaccineAt >= 0) {
+      const spore = winner.sporeArmed;
+      winner.sporeArmed = false;
+      if (vaccineAt >= 0 && !spore) {
         this.discard.push(...loser.hand.splice(vaccineAt, 1));
         out.effects.push({ type: 'vaccine', player: loser.id });
       } else {
-        loser.role = 'infected';
-        loser.infectedAt = now;
-        const card = randomInfectedCard(this.rng);
-        loser.hand.push(card);
-        out.effects.push({ type: 'infected', player: loser.id, by: winner.id, card });
+        const card = this.infect(loser, winner, now);
+        out.effects.push({ type: 'infected', player: loser.id, by: winner.id, card, spore });
       }
     } else if (winner.role === 'human' && loser.role === 'infected') {
       loser.stunnedUntil = now + RULES.stunTime;
@@ -152,6 +206,64 @@ export class Match {
 
   clueText() {
     return CLUES[Math.floor(this.rng() * CLUES.length)];
+  }
+
+  /** Can this player use this card from their hand right now? */
+  canUse(id, cardId) {
+    const card = this.get(id).hand.find((c) => c.id === cardId);
+    if (!card || !USABLE[card.type]) return { ok: false, reason: 'not-usable' };
+    return { ok: true, card, needsTarget: USABLE[card.type].target };
+  }
+
+  /**
+   * Activate a special or infected-only card. Returns the effect (or throws).
+   * scanner: 90% accurate read on the target · swap: trade a random card each ·
+   * freeze: target can't move 5s · decoy: a fake you for 10s · spore: next win
+   * ignores Vaccines · mask: hide infection signs 60s · rumor: fake clue about a random human.
+   */
+  useCard(id, cardId, targetId, now) {
+    const check = this.canUse(id, cardId);
+    if (!check.ok) throw new Error(`Can't use ${cardId}`);
+    if (check.needsTarget && (!targetId || targetId === id)) throw new Error(`${check.card.type} needs a target`);
+    const p = this.get(id);
+    const card = check.card;
+    p.hand.splice(p.hand.indexOf(card), 1);
+    this.discard.push(card);
+    p.stats.cardsUsed++;
+    const target = targetId ? this.get(targetId) : null;
+    switch (card.type) {
+      case 'scanner': {
+        const truth = target.role === 'infected';
+        const accurate = this.rng() < RULES.scannerAccuracy;
+        return { type: 'scan', by: id, target: targetId, infected: accurate ? truth : !truth };
+      }
+      case 'swap': {
+        if (!p.hand.length || !target.hand.length) return { type: 'swap', by: id, target: targetId, gave: null, got: null };
+        const [gave] = p.hand.splice(Math.floor(this.rng() * p.hand.length), 1);
+        const [got] = target.hand.splice(Math.floor(this.rng() * target.hand.length), 1);
+        p.hand.push(got);
+        target.hand.push(gave);
+        return { type: 'swap', by: id, target: targetId, gave, got };
+      }
+      case 'freeze':
+        target.frozenUntil = now + RULES.freezeTime;
+        return { type: 'freeze', by: id, target: targetId, until: target.frozenUntil };
+      case 'decoy':
+        return { type: 'decoy', by: id, until: now + RULES.decoyTime };
+      case 'spore':
+        p.sporeArmed = true;
+        return { type: 'spore', by: id };
+      case 'mask':
+        p.maskedUntil = now + RULES.maskTime;
+        return { type: 'mask', by: id, until: p.maskedUntil };
+      case 'rumor': {
+        const humans = this.humans().filter((h) => h.id !== id);
+        const about = humans[Math.floor(this.rng() * humans.length)]?.id ?? null;
+        return { type: 'rumor', by: id, about, text: this.clueText() };
+      }
+      default:
+        throw new Error(`Unhandled card ${card.type}`);
+    }
   }
 
   /** Exhausted players refill to 4 cards at a supply box (always with a playable card). */

@@ -20,6 +20,8 @@ export default class DuelScene extends Phaser.Scene {
     this.d = data;
     this.picked = null;
     this.finished = false;
+    this.outcome = null; // Phaser reuses this scene: clear the last duel's result
+    this.canClose = false;
   }
 
   create() {

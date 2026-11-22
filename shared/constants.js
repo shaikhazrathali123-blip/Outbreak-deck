@@ -94,4 +94,11 @@ export const RULES = {
   refillTime: 5000,
   refillRange: 60,
   falseClueChance: 0.2,
+  scannerAccuracy: 0.9,
+  freezeTime: 5000,
+  decoyTime: 10000,
+  maskTime: 60000,
+  signsTime: 60000, // infection signs grow over this long
+  cardRange: 260, // px: reach for Scanner, Swap and Freeze
+  matchMinutes: 6,
 };
