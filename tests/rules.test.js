@@ -27,14 +27,30 @@ test('deck: four of each number 1–9 plus Guns and Cures, no Zombies; Guns have
   assert.ok(deck.filter((c) => c.kind === 'gun').every((g) => g.bullets === 2));
 });
 
-test('zombies never start with a Gun or a Cure; nobody starts with two Guns', () => {
+test('zombies never start with a Gun or a Cure; a human starts with one of them at most', () => {
   for (let seed = 1; seed < 40; seed++) {
     const m = new Match({ seed, players: Array.from({ length: 15 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, color: '#fff', role: i < 7 ? 'infected' : 'human' })) });
     for (const p of m.list()) {
-      if (p.role === 'infected') assert.ok(!p.hand.some((c) => c.kind === 'gun' || c.kind === 'cure'));
-      assert.ok(p.hand.filter((c) => c.kind === 'gun').length <= 1);
+      const specials = p.hand.filter((c) => c.kind === 'gun' || c.kind === 'cure').length;
+      assert.ok(specials <= (p.role === 'infected' ? 0 : 1), `${p.id} holds ${specials}`);
     }
   }
+});
+
+test('a human with a Gun can never get a Cure (and the other way round), even from a refill', () => {
+  const m = make(['infected', 'human']);
+  const p = m.get('p2');
+  for (let i = 0; i < 40; i++) {
+    m.trash(...p.hand.splice(0));
+    p.hand.push(i % 2 ? gunCard() : cureCard());
+    m.refill('p2'); // not exhausted: nothing happens
+    p.hand.splice(0, 1).forEach((c) => m.trash(c));
+    m.refill('p2');
+    assert.ok(p.hand.filter((c) => c.kind === 'gun' || c.kind === 'cure').length <= 1);
+  }
+  assert.ok(!m.allowed({ role: 'human', hand: [gunCard()] }, cureCard()));
+  assert.ok(!m.allowed({ role: 'human', hand: [cureCard()] }, gunCard()));
+  assert.ok(m.allowed({ role: 'human', hand: [numberCard(3)] }, cureCard()));
 });
 
 // ------------------------------------------------------------------ duel table
@@ -94,12 +110,13 @@ test('a bite turns the human AT ONCE; the biter is fed', () => {
   assert.equal(m.get('p2').hungerAt, 500 + RULES.hunger, 'their own hunger starts now');
 });
 
-test('a bitten Gun holder loses the Gun: it goes secretly to another human without a Gun', () => {
-  const m = make(['infected', 'human', 'human', 'human']);
+test('a bitten Gun holder loses the Gun: it goes secretly to a human holding no Gun or Cure', () => {
+  const m = make(['infected', 'human', 'human', 'human', 'human']);
   const z = m.firstOf('p1', 'zombie');
   const gun = gunCard();
   const [n] = hand(m, 'p2', [numberCard(3), gun]);
   hand(m, 'p3', [numberCard(5), gunCard()]); // already armed: can't receive
+  hand(m, 'p5', [numberCard(5), cureCard()]); // holds a Cure: can't receive a Gun either
   hand(m, 'p4', [numberCard(5)]);
   const out = m.settleDuel('p1', 'p2', z.id, n.id, 0);
   assert.ok(!has(m, 'p2', 'gun'));
@@ -117,16 +134,18 @@ test('with no human to take it, a lost Gun goes back to the supply', () => {
 });
 
 // ------------------------------------------------------------------ cures
-test('a held Cure stops the bite, cures the zombie and sends the holder to the cell', () => {
-  const m = make(['infected', 'human']);
+test("you can't cure yourself: a Cure in your hand doesn't stop a bite, it is handed to another human", () => {
+  const m = make(['infected', 'human', 'human']);
   const z = m.firstOf('p1', 'zombie');
-  const [b] = hand(m, 'p2', [numberCard(5), cureCard()]);
+  const cure = cureCard();
+  const [b] = hand(m, 'p2', [numberCard(5), cure]);
+  hand(m, 'p3', [numberCard(2)]);
   const out = m.settleDuel('p1', 'p2', z.id, b.id, 0);
-  assert.equal(m.get('p2').role, 'human');
-  assert.ok(!has(m, 'p2', 'cure'));
-  assert.equal(m.get('p1').role, 'human', 'the zombie is cured');
-  assert.ok(out.effects.some((e) => e.type === 'cured' && e.player === 'p1' && e.via === 'held'));
-  assert.ok(m.inCell('p2', 1000));
+  assert.equal(m.get('p2').role, 'infected', 'bitten anyway');
+  assert.equal(m.get('p1').role, 'infected', 'the biter is not cured');
+  assert.ok(!m.inCell('p2', 10));
+  assert.ok(m.get('p3').hand.includes(cure), 'the Cure went secretly to the other human');
+  assert.ok(!out.effects.some((e) => e.type === 'cured'));
 });
 
 test('Cure played on a Zombie card: zombie cured (no Zombie cards, no hunger, gagged, recovering), user in the cell', () => {
@@ -293,9 +312,20 @@ test('meetings pause the cell, gag and hunger timers', () => {
   assert.equal(m.get('p1').hungerAt, RULES.hunger + 40000);
 });
 
-test('infected win once no human is left; humans win at 0:00 with anyone human', () => {
+test('at 0:00 the bigger team wins; a tie goes to the humans', () => {
+  const m = make(['infected', 'infected', 'infected', 'human', 'human']);
+  assert.equal(m.timeUpWinner(), 'infected', '3 zombies vs 2 humans');
+  m.quarantine('p1');
+  assert.equal(m.timeUpWinner(), 'humans', '2 vs 2: a tie');
+  m.kill(m.get('p2'), m.get('p4'));
+  assert.equal(m.timeUpWinner(), 'humans', '1 zombie vs 2 humans');
+  m.sendToCell(m.get('p4'), 0);
+  m.kill(m.get('p5'), m.get('p4'));
+  assert.equal(m.timeUpWinner(), 'humans', 'a Cure user in the cell counts: 1 vs 1');
+});
+
+test('infected win once no human is left', () => {
   const m = make(['infected', 'human']);
-  assert.equal(m.timeUpWinner(), 'humans');
   const z = m.firstOf('p1', 'zombie');
   const [n] = hand(m, 'p2', [numberCard(1)]);
   m.settleDuel('p1', 'p2', z.id, n.id, 0);

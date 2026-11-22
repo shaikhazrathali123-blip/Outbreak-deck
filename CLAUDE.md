@@ -9,20 +9,22 @@ This file only gives a short summary and the current state of the code.
 - Humans vs. hidden Infected. Walk up to a player and challenge them: they ACCEPT (card duel) or RUN
   (a chase: the challenger has 8s to touch them, which forces the duel).
 - Only four card kinds (keep it that simple): numbers 1–9 (higher wins), ZOMBIE (infected only: beats any
-  number and BITES: the loser turns AT ONCE; regrows every 40s, max 2), GUN (humans only, max 1, 2 bullets:
+  number and BITES: the loser turns AT ONCE; regrows every 40s, max 2), GUN (humans only, 2 bullets:
   kills whoever it is played on, human or zombie; every shot announced without the target's role; shooter
-  stunned 8s), CURE (humans only: played on a zombie it cures them, wasted on a human; held, it stops one bite
-  and cures the biter). Curing a zombie sends the Cure user to the quarantine cell for 60s (gagged, frozen,
+  stunned 8s), CURE (humans only: only works PLAYED on a zombie,
+  wasted on a human; it never protects its holder: you can't cure yourself). A human holds ONE of them at most:
+  a Gun OR a Cure (`RULES.maxSpecials`). Curing a zombie sends the Cure user to the quarantine cell for 60s (gagged, frozen,
   can't be voted out); the cured player is gagged 60s and recovering 20s (can't be bitten).
-- A bitten Gun holder's Gun goes secretly to a random human without one (or back to the supply).
+- A bitten human's Gun or Cure goes secretly to a random human holding neither (or back to the supply).
 - Infected must bite every 90s or start STARVING (growl + a 2.5s green flare every 20s; infection signs are
   kept subtle on purpose); two infected get a fake duel (both keep cards); Emergency Button in the Central
   Hall calls a meeting (30s quick chat, 15s vote, most votes = Quarantine Cell, role kept secret; the match
   clock pauses). No Blood Test, badge, incubation or Cure Lab machine any more (removed in v2).
 - Map: Helix Research Facility as a side-view cutaway: 4 floors, 15 rooms, 9 ladders, 10 duel tables
   (README "Map & Rooms").
-- Humans win if any human is left at 0:00 (a Cure user in the cell counts), or every zombie is shot, voted
-  out or cured. Infected win when no human is left.
+- Humans win if every zombie is shot, voted out or cured; infected win when no human is left. At 0:00 the
+  bigger team wins (more zombies than humans = infected; a tie goes to the humans; a Cure user in the cell
+  counts as a human; shot and voted-out players don't count): `Match.timeUpWinner()`.
 - Keep all names, art and characters original. Do not copy other games' look.
 
 ## Tech
@@ -51,8 +53,8 @@ This file only gives a short summary and the current state of the code.
 - `shared/duel.js`: `resolveDuel` compares two cards: number / infect / kill / cure / cure-number / draw.
 - `shared/match.js`: `assignRoles()`, `tallyVotes()` + `Match`, which holds every player's hand/role/alive/
   cooldowns/stats plus `hungerAt`, `cellUntil` (cure quarantine), `gagUntil`, `recoverUntil`, `shot`,
-  `quarantined` (voted out), `meetingsLeft`: `deal` / `allowed` (zombies never hold Guns or Cures, max 1 Gun),
-  `canChallenge`, `settleDuel` (effects: card-taken, clue, stunned, killed, bitten, handed (secret Gun hand-off),
+  `quarantined` (voted out), `meetingsLeft`: `deal` / `allowed` (zombies never hold Guns or Cures; a human holds a Gun OR a Cure),
+  `canChallenge`, `settleDuel` (effects: card-taken, clue, stunned, killed, bitten, handed (secret Gun/Cure hand-off),
   cured, cell, cure-wasted, immune, fake, draw), `bite`, `cureZombie`, `sendToCell`, `trash` (Zombie cards
   never reach the deck), `tick` (events: zombie-grew / starving / growl / released), `canCallMeeting`,
   `canVote` / `canBeVoted`, `shiftTimers` (meetings pause the match), `quarantine`, `refill`, `winner()`.

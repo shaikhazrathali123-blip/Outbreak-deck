@@ -21,6 +21,8 @@ see your own role.
     - Most players are human.
     - Only humans can carry a GUN or a CURE. Zombies can never hold
       them (see "LOSING GUNS AND CURES" in section 3).
+    - A human can hold only ONE of them: a Gun OR a Cure, never both,
+      and never two of the same.
 
   INFECTED (ZOMBIE)
     - A few players start infected:
@@ -40,10 +42,15 @@ see your own role.
 2. HOW TO WIN
 ----------------------------------------------------------------
 
-  HUMANS WIN   if at least one human is left when time runs out,
-               OR if every zombie has been shot, voted out, or cured.
+  BEFORE THE TIMER ENDS
+    HUMANS WIN   if every zombie has been shot, voted out, or cured.
+    ZOMBIES WIN  if every human has turned, been shot or voted out.
 
-  ZOMBIES WIN  if every human has turned, been shot or voted out.
+  WHEN THE TIMER ENDS, THE BIGGER TEAM WINS
+    - More zombies than humans left  -> ZOMBIES WIN.
+    - More humans than zombies left  -> HUMANS WIN.
+    - Exactly the same number        -> HUMANS WIN (they held out).
+    Shot and voted-out players do not count.
 
   A human in a temporary CURE QUARANTINE (section 3) still counts
   as a human for winning.
@@ -64,7 +71,7 @@ see your own role.
            Zombies start with 2 and grow a new one every 40 seconds
            (never more than 2). Each Zombie card is used up when played.
 
-  GUN      (rare, humans only, max 1 per player)
+  GUN      (rare, humans only; you hold a Gun OR a Cure, never both)
            A Gun has 2 BULLETS. Each time you play it, one bullet is
            used. When both are gone, the card is used up.
            The Gun KILLS whoever you play it on, human or zombie:
@@ -78,9 +85,8 @@ see your own role.
            Zombies can never hold a Gun.
            Killing a human helps the zombies. Only shoot when sure!
 
-  CURE     (rare, humans only)
-           Works two ways.
-           A) PLAY it in a duel against a zombie:
+  CURE     (rare, humans only; you hold a Gun OR a Cure, never both)
+           You must PLAY it in a duel against a zombie:
                 - Cure vs ZOMBIE card: you are not bitten, the Cure is
                   used up, and the zombie is CURED (becomes human).
                 - Cure vs number card, opponent is a zombie: the zombie
@@ -88,11 +94,9 @@ see your own role.
                   (no bite, since they played a number).
                 - Cure vs number card, opponent is human: the Cure is
                   WASTED and you lose the duel. Nothing else happens.
-           B) HOLD it: if a Zombie card would bite you, the Cure is
-              used up instead, you stay human, and the zombie is cured.
-           A bitten player is already a zombie, so a Cure picked up
-           later does nothing for them. The Cure only works BEFORE the
-           bite: held in your hand, or played in a duel.
+           You CANNOT use a Cure on yourself. Holding one does NOT
+           protect you: if a Zombie card bites you, you turn like
+           anyone else, and your Cure is passed on (see below).
 
            WHEN A ZOMBIE IS CURED:
              - They become human, lose all Zombie cards, and hunger
@@ -123,12 +127,10 @@ see your own role.
              - NO announcement and NO hint: nobody is told that a card
                was discarded, who lost it, or who received it. The new
                owner just finds it in their hand.
-             - A Gun never goes to someone who already holds a Gun
-               (max 1 per player). A Cure goes the same way.
+             - It only goes to a human who holds NO Gun and NO Cure
+               (one of them per player).
              - If no other human can receive it, the card goes back to
                the refill supply.
-           (A held Cure is used up by the bite itself and stops it, so
-           this only affects Guns.)
 
   Quick table:
      number vs number  ->  higher number wins
@@ -162,8 +164,8 @@ STEP 3 - PICK A CARD
 
 STEP 4 - RESULT
    - Number win: the winner takes the loser's card.
-   - Zombie win: the loser is bitten and turns at once (unless they
-     have a Cure).
+   - Zombie win: the loser is bitten and turns at once (a Cure in
+     their hand does not help).
    - Gun: the target is shot and is out of the match; the shot is
      announced and the shooter is stunned for 8 seconds.
    - Cure: the zombie is cured and the Cure user is quarantined for
@@ -197,9 +199,10 @@ STEP 4 - RESULT
    other zombies (green outline), and you get a Zombie card.
    Nobody else is told. They only find out by watching you.
 
-   Your only protection is a CURE in your hand BEFORE the bite.
-   Any Gun or Cure you hold is discarded and given secretly to a
-   random human (section 3).
+   Holding a CURE does not protect you: you cannot cure yourself.
+   The only way to stop a bite is to PLAY your Cure in that duel
+   (Cure vs ZOMBIE card). Any Gun or Cure you hold when bitten is
+   discarded and given secretly to a random human (section 3).
 
    Your hunger clock starts at the moment you turn (section 7).
 
@@ -254,8 +257,7 @@ STEP 4 - RESULT
    - CLUES: beat someone with a number card and you might get a hint
      like "Your opponent's hands felt cold...". (1 in 8 clues about
      humans is false, so be careful.)
-   - CURE: if your Cure saves you or cures someone, the attacker/
-     target is 100% a zombie.
+   - CURE: if your Cure cures someone, they were 100% a zombie.
    - SIGNS that grow over about 60 seconds after turning:
         * a very faint green tint, and a rare split-second green flicker
         * they twitch now and then
@@ -332,12 +334,13 @@ STEP 4 - RESULT
    As a HUMAN
    - Your Gun has 2 bullets and kills anyone, human or zombie.
      Shoot only someone you are sure about.
-   - A Cure cures a zombie and shields you, but you lose 60 seconds
-     in quarantine. Use it when it is worth it.
+   - You carry a Gun OR a Cure, never both. A Cure must be PLAYED
+     on a zombie; it never protects you. Curing someone costs you
+     60 seconds in quarantine. Use it when it is worth it.
    - Running can save your life. Head for a ladder.
    - Watch for green flickers, twitching and glowing footprints.
    - A bite turns you at once, so avoid duels with anyone you
-     suspect unless you hold a Cure or a Gun.
+     suspect unless you are ready to PLAY your Cure or your Gun.
 
    As a ZOMBIE
    - Act normal. Do not chase everyone at once.
@@ -345,8 +348,9 @@ STEP 4 - RESULT
    - If you have no Zombie card, play numbers: you can't infect,
      but a Gun can still kill you.
    - Gun holders are dangerous: a shot at you is announced.
-   - If you bite a Gun holder, their Gun is taken away and secretly
-     given to another human, so a new Gun holder may appear anywhere.
+   - If you bite a Gun or Cure holder, the card is taken away and
+     secretly given to another human, so a new holder may appear
+     anywhere.
    - Do not go hungry: starving zombies growl and flare green.
    - Duel your fellow zombies in front of humans. It looks normal.
    - If someone is quarantined for 60 seconds, use the time to spread.

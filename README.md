@@ -74,12 +74,12 @@ At the start of each match, roles are secretly assigned.
 
 ### 🧍 Human
 - The majority role.
-- Goal: stay uninfected until the timer ends, or shoot every zombie with a **Gun**.
+- Goal: get rid of every zombie (shoot, cure or vote them out), or still outnumber the zombies when the timer ends.
 - Can see only their own role.
 
 ### 🧟 Infected
 - Starts as 1 player (6–8 players), 2 players (9–12 players) or 3 players (13–15 players).
-- Goal: infect every human before the timer ends, using **Zombie** cards.
+- Goal: bite every human, or outnumber the humans when the timer ends.
 - Can see other infected players (green outline only they can see).
 - Looks exactly like a human to everyone else at first.
 
@@ -138,8 +138,8 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 
 ### 5. Bitten: you turn at once
 - A Zombie card **bites** you and you are a zombie **right away**: you grow a Zombie card and see the other zombies. Nobody else is told.
-- Your only protection is a **Cure in your hand before the bite** (it is used up, you stay human, and the zombie is cured; you then go to quarantine for 60 seconds).
-- Any **Gun** you hold is taken away and given **secretly** to a random other human without a Gun (or back to the refill supply if nobody can take it). No announcement, no hint.
+- Holding a **Cure does not protect you**: you can't cure yourself. The only way to stop a bite is to **play** your Cure in that duel.
+- Any **Gun or Cure** you hold is taken away and given **secretly** to a random other human who holds neither (or back to the refill supply if nobody can take it). No announcement, no hint.
 
 ### 5b. Hunger
 - An infected player must bite someone at least every **90 seconds**, counted from when they turned or last bit.
@@ -148,7 +148,7 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 ### 5c. Cures and the 60-second quarantine
 - **A cured zombie** becomes human, loses all Zombie cards, stops being hungry and forgets the other zombies. They are **gagged for 60 seconds** (no quick-chat, no votes) and **recovering for 20 seconds** (pale tint, can't be bitten). They are not told who cured them.
 - **The Cure user** goes to the quarantine cell for **60 seconds**: can't move, duel, call a meeting, chat or vote, can't be bitten or voted out, and still counts as a human. Everyone sees "a player was quarantined", with no reason. A wasted Cure (on a human) means no quarantine.
-- Zombies can never hold Guns or Cures (not from the deal, a refill, or a hand-off). Nobody holds more than one Gun.
+- Zombies can never hold Guns or Cures (not from the deal, a refill, or a hand-off). A human holds **one** of them at most: a Gun **or** a Cure, never both.
 
 ### 6. Running out of cards
 - If you have no cards at all, you are **Exhausted** (a Cure counts as a duel card now).
@@ -178,8 +178,8 @@ Only **four kinds** of card, so anyone can learn them in a minute. The tension c
 |---|---|---|
 | **1 – 9** | Everyone | Duel power. Higher number wins. |
 | 🧟 **Zombie** | Infected only | Beats **any** number card and **bites** the loser: they turn **at once**. Used up when played. Infected start with 2 and grow a new one every **40 seconds** (max 2). |
-| 🔫 **Gun** | Humans only, rare (3 per deck), max 1 each | **2 bullets.** Kills whoever you play it on, **human or zombie**. Every shot is announced (shooter's name, never the target's role); the shooter is stunned 8 seconds. |
-| 💉 **Cure** | Humans only, rare (3 per deck) | **Play it** on a zombie to cure them (on a human it is wasted). **Hold it** and it stops one bite (the zombie is cured). Curing a zombie costs you 60 seconds in quarantine. |
+| 🔫 **Gun** | Humans only, rare (3 per deck); a Gun **or** a Cure, never both | **2 bullets.** Kills whoever you play it on, **human or zombie**. Every shot is announced (shooter's name, never the target's role); the shooter is stunned 8 seconds. |
+| 💉 **Cure** | Humans only, rare (3 per deck); a Gun **or** a Cure, never both | **Play it** on a zombie to cure them (on a human it is wasted). It never protects its holder: you can't cure yourself. Curing a zombie costs you 60 seconds in quarantine. |
 
 - Each player starts with **7 cards** from a shuffled deck (four of each number 1–9, plus Guns and Cures; big lobbies use extra decks).
 - Zombie cards are never in the deck: only infected players grow them.
@@ -252,9 +252,10 @@ Random events happen during each match to keep things tense. One event triggers 
 
 | Team | Wins if… |
 |---|---|
-| 🧍 **Humans** | At least 1 human is left when the timer hits 0 (a Cure user in the cell counts) |
 | 🧍 **Humans** | Every zombie has been shot, voted out or cured |
+| 🧍 **Humans** | The timer hits 0 and humans are the bigger team, or it is a tie (a Cure user in the cell counts) |
 | 🧟 **Infected** | Every human has turned, been shot or been voted out |
+| 🧟 **Infected** | The timer hits 0 and there are **more zombies than humans** left |
 
 **Rewards after each match:**
 - XP for playing, winning, infecting, surviving and correct votes.
@@ -513,13 +514,14 @@ Each phase ends with something you can **play and test**. Don't start the next p
 **Changed from Phase 3.6:**
 - [x] Bites turn you **at once** (no 45-second incubation); the Cure Lab machine is gone
 - [x] Blood Test and Clean badge removed; "I'm clean" is only a claim
-- [x] Guns: humans only, max 1, **2 bullets**, kill **anyone**; every shot announced without the target's role; shooter stunned 8s (no more misfires)
-- [x] Cures: humans only; **played** on a zombie they cure it, on a human they are wasted; **held** they stop one bite and cure the biter
+- [x] Guns: humans only, **2 bullets**, kill **anyone**; every shot announced without the target's role; shooter stunned 8s (no more misfires)
+- [x] Cures: humans only; **played** on a zombie they cure it, on a human they are wasted; holding one never protects you (you can't cure yourself)
+- [x] A human holds one special card at most: a Gun **or** a Cure
 - [x] Cured zombies: human again, no Zombie cards or hunger, forget their allies, gagged 60s, recovering 20s (can't be bitten)
 - [x] Cure users: 60s in the quarantine cell (can't move, duel, chat, vote or be voted out; still a human)
 - [x] Bitten Gun holders lose the Gun to a random human without one, in secret
 - [x] Zombies never get Guns or Cures from the deal or refills; false clues 1 in 8
-- [x] Humans win if any human is left at 0:00, or every zombie is shot, voted out or cured
+- [x] Humans win if every zombie is shot, voted out or cured; at 0:00 the bigger team wins (a tie goes to the humans)
 
 **Balance numbers** (all in `RULES`): hunger 90s, Zombie regrow 40s, cure quarantine / gag 60s, recovering 20s, shot stun 8s, 2 bullets. Target ~50% human wins.
 

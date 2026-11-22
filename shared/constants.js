@@ -54,12 +54,12 @@ export const PLAYER_COLORS = [
 //   number 1–9  duel power, highest wins
 //   zombie      infected only: beats any number card and bites (the loser turns at once)
 //   gun         humans only, 2 bullets: kills whoever it is played on, human or zombie
-//   cure        humans only: played on a zombie it cures them; held, it blocks one bite
+//   cure        humans only: played on a zombie it cures them. It never protects its holder.
 export const CARD_INFO = {
   number: { name: 'Number', color: '#2fd2e0', text: 'Duel card. The higher number wins.' },
   zombie: { name: 'Zombie', color: '#3ee67a', text: 'Beats any number card and bites the loser: they turn into a zombie at once. Loses to a Gun.' },
   gun: { name: 'Gun', color: '#ff7a3a', text: '2 bullets. Kills whoever you play it on, human or zombie. Every shot is announced and you are stunned 8s.' },
-  cure: { name: 'Cure', color: '#3e8bff', text: 'Play it on a zombie to cure them (you spend 60s in quarantine). Wasted on a human. Held, it blocks one bite.' },
+  cure: { name: 'Cure', color: '#3e8bff', text: 'Play it on a zombie to cure them (you spend 60s in quarantine). Wasted on a human. It cannot protect you: you cannot cure yourself.' },
 };
 
 export const RULES = {
@@ -67,7 +67,7 @@ export const RULES = {
   refillTo: 4,
   deckGuns: 3, // per 36 number cards
   deckCures: 3,
-  maxGuns: 1, // Guns one player may hold
+  maxSpecials: 1, // a human holds ONE Gun or ONE Cure at most (never both)
   gunBullets: 2,
   shotStun: 8000, // ms the shooter is stunned after any shot
   zombieStart: 2, // Zombie cards an infected player starts with

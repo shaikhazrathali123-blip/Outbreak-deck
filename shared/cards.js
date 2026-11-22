@@ -48,7 +48,7 @@ export function createDeck(rng, copies = 1) {
 /** How many deck copies a match needs (7 cards each plus plenty to refill from). */
 export const decksFor = (players) => Math.max(1, Math.ceil((players * 7 * 2) / 42));
 
-/** Can this card be played in a duel? Every kind can (a Cure is played on a zombie, or held as a shield). */
+/** Can this card be played in a duel? Every kind can (a Cure only works when played on a zombie). */
 export const isPlayable = (card) => !!card;
 
 /** Guns and Cures are humans-only. */

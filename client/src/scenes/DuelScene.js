@@ -246,7 +246,7 @@ export default class DuelScene extends Phaser.Scene {
         lines.push([theyZombie ? 'They played a Zombie card. Everyone heard the shot.' : 'Were they a zombie? Nobody will ever know. Everyone heard it.', '#e9e4d6']);
         lines.push([`You are stunned ${RULES.shotStun / 1000}s.`, '#ffb04a']);
       } else if (e.type === 'cured' && e.player === youId) lines.push(['YOU WERE CURED', '#3e8bff', 22], [`Human again. Gagged ${RULES.gagTime / 1000}s, and you forget the other zombies.`, '#c9ced8']);
-      else if (e.type === 'cured') lines.push([`${opp.name} WAS A ZOMBIE: NOW CURED`, '#3e8bff', 20], [e.via === 'held' ? 'Your Cure stopped the bite.' : 'Your Cure worked.', '#c9ced8']);
+      else if (e.type === 'cured') lines.push([`${opp.name} WAS A ZOMBIE: NOW CURED`, '#3e8bff', 20], ['Your Cure worked.', '#c9ced8']);
       else if (e.type === 'cell' && e.player === youId) lines.push([`You go to quarantine for ${RULES.cureQuarantine / 1000}s (gagged, can't move).`, '#ff9a5a']);
       else if (e.type === 'cure-wasted' && e.player === youId) lines.push(['CURE WASTED', '#ff9a5a', 20], [`${opp.name} is human. You lose the duel.`, '#c9ced8']);
       else if (e.type === 'cure-wasted') lines.push([`${opp.name} wasted a Cure on you.`, '#c9ced8']);

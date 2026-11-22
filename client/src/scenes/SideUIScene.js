@@ -175,8 +175,8 @@ export default class SideUIScene extends Phaser.Scene {
     const color = infected ? '#3ee67a' : '#2fd2e0';
     const allies = session.match.list().filter((p) => p.role === 'infected' && p.id !== session.youId).map((p) => p.name);
     const lines = infected
-      ? ['Play your ZOMBIE card in a duel to bite a human: they turn at once. Bite before your HUNGER runs out.', 'Beware of Guns and Cures.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
-      : ['Stay human until the timer ends. Shoot (GUN), cure (CURE) or vote out every zombie.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Emergency Button in the Central Hall.`; })()];
+      ? ['Bite humans with your ZOMBIE card: they turn at once. Outnumber them when the timer ends. Mind your HUNGER.', 'Beware of Guns and Cures.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
+      : ['Shoot (GUN), cure (CURE) or vote out every zombie, or outnumber them when the timer ends.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Emergency Button in the Central Hall.`; })()];
     const items = [];
     const bg = this.add.rectangle(0, 0, W, H, 0x020308, 0.78).setOrigin(0).setInteractive();
     items.push(bg);

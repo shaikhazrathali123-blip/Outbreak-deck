@@ -37,7 +37,12 @@ export default class ResultScene extends Phaser.Scene {
     y += small ? 28 : 40;
     const mins = Math.floor(r.duration / 60000);
     const secs = String(Math.floor((r.duration % 60000) / 1000)).padStart(2, '0');
-    const sub = r.winner === 'infected' ? `Every human was turned, shot or voted out in ${mins}:${secs}` : r.reason === 'all-zombies-gone' ? `Every zombie was shot, cured or voted out in ${mins}:${secs}` : 'At least one human made it to the end';
+    // at 0:00 the bigger team wins (a tie goes to the humans)
+    const left = (role) => r.players.filter((p) => p.alive && p.role === role).length;
+    const count = `${left('infected')} zombie${left('infected') === 1 ? '' : 's'} vs ${left('human')} human${left('human') === 1 ? '' : 's'}`;
+    const sub = r.reason === 'time'
+      ? `Time up: ${count}. ${r.winner === 'infected' ? 'The zombies outnumber the humans' : 'The humans hold the majority'}`
+      : r.winner === 'infected' ? `Every human was turned, shot or voted out in ${mins}:${secs}` : `Every zombie was shot, cured or voted out in ${mins}:${secs}`;
     this.add.text(W / 2, y, `${sub}  ·  you finished ${r.youRole === 'infected' ? 'INFECTED' : 'HUMAN'}`, { fontFamily: FONT, fontSize: '13px', fontStyle: '600', color: '#c9ced8' })
       .setOrigin(0.5).setLetterSpacing(1);
 

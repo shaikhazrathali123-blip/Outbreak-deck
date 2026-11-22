@@ -117,9 +117,13 @@ export class Match {
     return null;
   }
 
-  /** At 0:00 humans win if at least one human is left. */
+  /**
+   * At 0:00 the bigger team wins: more zombies than humans = 'infected', otherwise 'humans'
+   * (a tie goes to the humans: they held out). Shot and voted-out players don't count;
+   * a Cure user in the cell counts as a human.
+   */
   timeUpWinner() {
-    return this.living('human').length ? 'humans' : 'infected';
+    return this.living('infected').length > this.living('human').length ? 'infected' : 'humans';
   }
 
   // ------------------------------------------------------------ cards
@@ -136,11 +140,11 @@ export class Match {
     return out;
   }
 
-  /** May `p` hold this card? Zombies never hold Guns or Cures; nobody holds more than one Gun. */
+  /** May `p` hold this card? Zombies never hold Guns or Cures; a human holds ONE of them at most (a Gun or a Cure). */
   allowed(p, card) {
-    if (isHumanOnly(card) && p.role === 'infected') return false;
-    if (card.kind === 'gun' && p.hand.filter((c) => c.kind === 'gun').length >= RULES.maxGuns) return false;
-    return true;
+    if (!isHumanOnly(card)) return true;
+    if (p.role === 'infected') return false;
+    return p.hand.filter(isHumanOnly).length < RULES.maxSpecials;
   }
 
   /** Give `p` up to `n` cards they may hold; anything else goes to the discard pile. */
@@ -248,8 +252,8 @@ export class Match {
 
   // ------------------------------------------------------------ what can happen to a player
   /**
-   * A Zombie card hit a human: they turn AT ONCE. Their Guns (and any Cures) are
-   * discarded and secretly handed to random other humans (or back to the supply).
+   * A Zombie card hit a human: they turn AT ONCE. Their Gun or Cure is discarded and
+   * secretly handed to a random other human who holds neither (or back to the supply).
    * @returns {{card, to: string|null}[]} where each card went (secret: for the UI of the receiver only)
    */
   bite(p, by, now) {
@@ -310,8 +314,7 @@ export class Match {
   /**
    * Play out a duel. Returns everything that happened, for the UI.
    *   numbers   winner takes the loser's card; a human beating a zombie gets a clue, the zombie is stunned
-   *   zombie    bites a human (they turn at once) unless they hold a Cure: then the zombie is cured
-   *             and the Cure holder goes to the cell
+   *   zombie    bites a human: they turn at once (a Cure in their hand doesn't help; only a played Cure does)
    *   gun       kills whoever it is played on; the shooter is stunned 8s; uses a bullet
    *   cure      on a Zombie card: no bite, zombie cured, Cure user to the cell
    *             on a number: a zombie is cured (but wins the duel), a human just wins (Cure wasted)
@@ -363,17 +366,11 @@ export class Match {
         break;
       }
       case 'infect': {
-        // the number card goes back; the Zombie card is what hurts
+        // the number card goes back; the Zombie card is what hurts.
+        // A Cure in the hand does NOT protect you: you can't use a Cure on yourself.
         loser.hand.push(lCard);
-        const cure = loser.hand.findIndex((c) => c.kind === 'cure');
         if (this.isRecovering(loser.id, now)) {
           out.effects.push({ type: 'immune', player: loser.id, by: winner.id });
-        } else if (cure >= 0) {
-          this.trash(...loser.hand.splice(cure, 1));
-          this.cureZombie(winner, loser, now);
-          this.sendToCell(loser, now);
-          out.effects.push({ type: 'cured', player: winner.id, by: loser.id, via: 'held' });
-          out.effects.push({ type: 'cell', player: loser.id, until: loser.cellUntil });
         } else {
           const moved = this.bite(loser, winner, now);
           out.effects.push({ type: 'bitten', player: loser.id, by: winner.id });
