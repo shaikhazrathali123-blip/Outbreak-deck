@@ -70,9 +70,9 @@ export const RULES = {
   maxSpecials: 1, // a human holds ONE Gun or ONE Cure at most (never both)
   gunBullets: 2,
   shotStun: 8000, // ms the shooter is stunned after any shot
-  zombieStart: 2, // Zombie cards an infected player starts with
-  zombieMax: 2,
-  zombieRegen: 40000, // ms for an infected player to grow a new Zombie card
+  zombieStart: 1, // Zombie cards an infected player starts with
+  zombieMax: 1, // a zombie holds ONE Zombie card at most
+  zombieRegen: 40000, // ms after playing it (or turning) before a new Zombie card grows: one bite per 40s
   challengeRange: 90, // px between players to challenge
   answerTime: 5000, // ms to accept or run
   pickTime: 5000, // ms to pick a card in a duel
@@ -95,8 +95,8 @@ export const RULES = {
   recoverTime: 20000, // ms a freshly cured zombie can't be bitten
 
   // --- hunger and meetings (sections 7 and 9)
-  hunger: 90000, // ms an infected player can go without biting before they start STARVING
-  growlEvery: 20000, // ms between the public growls of a starving zombie
+  hunger: 60000, // ms an infected player can go without biting before they start STARVING
+  growlEvery: 40000, // ms between the public growls (and green flares) of a starving zombie
   meetingRange: 70, // px from the Emergency Button to call a meeting
   meetingsPerPlayer: 1,
   meetingFirstDelay: 30000, // no meeting in the first 30s
@@ -104,4 +104,17 @@ export const RULES = {
   meetingTalk: 30000, // ms of discussion
   meetingVote: 15000, // ms of voting
   meetingResult: 4500, // ms showing the result
+};
+
+// Secret score (GAME_GUIDE "Points"). Your score = card points in your hand + banked points.
+// Only you see your own score; everyone's is revealed at the end. The team still wins the
+// match; the highest score is the top player.
+export const POINTS = {
+  gun: 20, // card points while you hold it (a number card is worth its number, a Zombie card 0)
+  cure: 30,
+  shotZombie: 10, // banked: your Gun shot a zombie
+  shotHuman: -10, // banked: your Gun shot a human
+  bite: 15, // banked: your Zombie card turned a human
+  cureWasted: -10, // banked: on top of losing the Cure's 30 (total -40). Curing a zombie just costs the card (-30)
+  perMinute: 10, // time bonus: every full minute in your current role. Lost when your role changes (bitten or cured)
 };

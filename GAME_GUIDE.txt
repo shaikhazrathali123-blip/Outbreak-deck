@@ -1,5 +1,5 @@
 ================================================================
-                 OUTBREAK DECK  -  HOW TO PLAY  (v2)
+                OUTBREAK DECK  -  HOW TO PLAY  (v2.3)
 ================================================================
 
 THE IDEA IN ONE LINE
@@ -57,6 +57,42 @@ see your own role.
 
   Match length: 4, 6 or 8 minutes (choose in the menu).
 
+  SECRET POINTS: THE TOP PLAYER
+    Your TEAM wins or loses the match. On top of that, every player
+    has a secret SCORE, and the highest score is the TOP PLAYER.
+    Only you can see your own score (the gold chip under your role).
+    Nobody can see anyone else's. All scores are revealed at the end.
+
+    Your score = the points of the cards in your hand
+               + the points you banked.
+
+    CARD POINTS (count only while the card is in your hand)
+      Number card   its number (1-9)
+      Gun           20  (while it still has bullets)
+      Cure          30
+      Zombie card    0
+
+    BANKED POINTS (yours to keep)
+      Your Gun shoots a zombie   +10
+      Your Gun shoots a human    -10
+      Your Zombie card bites     +15
+
+    TIME BONUS (live)
+      +10 for every full minute you stay in your role (human or
+      zombie). If your role changes (you get bitten, or you are
+      cured) the time bonus drops back to 0 and starts again.
+      Meetings pause it, like the match clock.
+
+    WHAT IT COSTS
+      Lose a duel   -> the card you played goes, and its points too.
+      Cure a zombie -> you save them, but the Cure is gone: -30.
+      Cure a human  -> wasted: the Cure is gone (-30) and -10 more = -40.
+      Last bullet   -> the empty Gun leaves your hand: -20.
+      Bitten        -> your Gun or Cure is handed off, and its points.
+      Shot or voted out -> your score freezes at what it was.
+
+    Ties share the top spot.
+
 
 ----------------------------------------------------------------
 3. THE CARDS  (only 4 kinds)
@@ -68,8 +104,11 @@ see your own role.
   ZOMBIE   (only zombies have it)
            Beats ANY number card, even a 9, and BITES the loser.
            The loser turns into a zombie IMMEDIATELY.
-           Zombies start with 2 and grow a new one every 40 seconds
-           (never more than 2). Each Zombie card is used up when played.
+           A zombie holds only ONE Zombie card. It is used up when
+           played, and a new one grows 40 SECONDS later, so a zombie
+           can bite at most once every 40 seconds.
+           The first zombies start with their card. A newly bitten
+           zombie grows their first card 40 seconds after turning.
 
   GUN      (rare, humans only; you hold a Gun OR a Cure, never both)
            A Gun has 2 BULLETS. Each time you play it, one bullet is
@@ -79,8 +118,8 @@ see your own role.
              - Gun vs number card   -> that player is dead, human or
                                        zombie.
            A dead player is out of the match. Their role stays SECRET.
-           EVERY SHOT IS ANNOUNCED to everyone ("a player was shot"),
-           with the shooter's name but NOT the target's role.
+           EVERY SHOT IS ANNOUNCED to everyone (for example "P5 shot
+           P3"): the names, but NEVER the target's role.
            After any shot, the shooter is STUNNED for 8 seconds.
            Zombies can never hold a Gun.
            Killing a human helps the zombies. Only shoot when sure!
@@ -133,14 +172,16 @@ see your own role.
                the refill supply.
 
   Quick table:
-     number vs number  ->  higher number wins
+     number vs number  ->  higher number wins (same number: draw)
      ZOMBIE vs number  ->  ZOMBIE wins, the human turns at once
      GUN    vs ZOMBIE  ->  GUN wins, the zombie is dead
      GUN    vs number  ->  GUN wins, that player is dead
+     GUN    vs CURE    ->  GUN wins, the Cure player is dead
      CURE   vs ZOMBIE  ->  no bite, zombie cured, Cure user quarantined
      CURE   vs number  ->  zombie: cured, number wins the duel
                            human: Cure wasted, you lose
      same vs same      ->  draw, cards go back
+                           (GUN vs GUN: each Gun still uses a bullet)
 
 
 ----------------------------------------------------------------
@@ -168,8 +209,9 @@ STEP 4 - RESULT
      their hand does not help).
    - Gun: the target is shot and is out of the match; the shot is
      announced and the shooter is stunned for 8 seconds.
-   - Cure: the zombie is cured and the Cure user is quarantined for
-     60 seconds (see section 3).
+   - Cure: on a zombie, the zombie is cured and the Cure user is
+     quarantined for 60 seconds. On a human, the Cure is wasted and
+     you lose the duel (see section 3).
    - A human who beats a zombie with a NUMBER card also gets a CLUE,
      and the zombie is STUNNED for 12 seconds (cannot move or duel).
    After a duel, both players wait 10 seconds before they can duel again.
@@ -196,7 +238,8 @@ STEP 4 - RESULT
 
    When a Zombie card beats you, you are BITTEN and turn into a
    zombie right away. Your role chip changes to ZOMBIE, you see the
-   other zombies (green outline), and you get a Zombie card.
+   other zombies (green outline), and your first Zombie card
+   grows 40 seconds later.
    Nobody else is told. They only find out by watching you.
 
    Holding a CURE does not protect you: you cannot cure yourself.
@@ -210,31 +253,25 @@ STEP 4 - RESULT
 7. HUNGER (zombies)
 ----------------------------------------------------------------
 
-   A zombie must bite someone at least every 90 SECONDS.
+   A zombie must bite someone at least every 60 SECONDS (1 minute).
    If not, they start STARVING:
-     - every 20 seconds they flare green for a moment,
-     - a hungry growl from their room is announced every 20 seconds.
+     - every 40 seconds they flare green for a moment,
+     - a hungry growl from their room is announced every 40 seconds.
    A bite feeds them and resets the clock.
 
 
 ----------------------------------------------------------------
-8. (REMOVED)
-----------------------------------------------------------------
-
-   The Blood Test and the Clean Badge are no longer in the game.
-
-
-----------------------------------------------------------------
-9. EMERGENCY MEETINGS AND VOTING
+8. EMERGENCY MEETINGS AND VOTING
 ----------------------------------------------------------------
 
    The red EMERGENCY BUTTON is in the CENTRAL HALL (floor 2).
      - Each player can call ONE meeting per match.
      - No meeting in the first 30 seconds, or within 30 seconds of the
        last one.
-   Everyone still in the match is pulled into the hall and the match
-   clock PAUSES (so do hunger, quarantine timers and
-   stuns).
+   Everyone still in the match is pulled into the hall (Cure users
+   stay in the quarantine cell). The match clock PAUSES, and so do
+   hunger, quarantine, gag and recovering timers, cooldowns and
+   stuns.
 
    1. DISCUSS (30 seconds): tap a player, then a quick-chat button:
         ACCUSE, VOUCH, I'M CLEAN, SKIP.
@@ -251,12 +288,12 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-10. HOW TO SPOT A ZOMBIE
+9. HOW TO SPOT A ZOMBIE
 ----------------------------------------------------------------
 
-   - CLUES: beat someone with a number card and you might get a hint
-     like "Your opponent's hands felt cold...". (1 in 8 clues about
-     humans is false, so be careful.)
+   - CLUES: beat a zombie with a number card and you get a hint like
+     "Your opponent's hands felt cold...". But beating a HUMAN gives a
+     false hint 1 time in 8, so a clue is never proof.
    - CURE: if your Cure cures someone, they were 100% a zombie.
    - SIGNS that grow over about 60 seconds after turning:
         * a very faint green tint, and a rare split-second green flicker
@@ -272,15 +309,16 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-11. RUNNING OUT OF CARDS
+10. RUNNING OUT OF CARDS
 ----------------------------------------------------------------
 
-   If you have no card you can play in a duel, you cannot challenge,
-   and nobody can challenge you.
+   If you have no cards at all, you cannot challenge, and nobody can
+   challenge you. (A Cure counts as a card you can play.)
 
    To refill: go to a CARD REFILL point and stand still for
    5 seconds. You get back up to 4 cards.
-   Refill points never give a Gun or a Cure to a zombie.
+   Refill points never give a Gun or a Cure to a zombie, and never
+   give a human a second one (a Gun OR a Cure, never both).
 
    Card refill points: SUPPLY ROOM (ground floor),
                        STORAGE (floor 3),
@@ -288,7 +326,7 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-12. CONTROLS
+11. CONTROLS
 ----------------------------------------------------------------
 
   Action                  PC                    Phone
@@ -305,7 +343,7 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-13. THE MAP
+12. THE MAP
 ----------------------------------------------------------------
 
    The facility is seen from the side, like a building cut open.
@@ -328,7 +366,7 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-14. QUICK TIPS
+13. QUICK TIPS
 ----------------------------------------------------------------
 
    As a HUMAN
@@ -357,7 +395,7 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-15. NOT IN THE GAME YET (planned)
+14. NOT IN THE GAME YET (planned)
 ----------------------------------------------------------------
 
    - Online multiplayer with friends (next phase), with real chat in

@@ -251,11 +251,16 @@ export default class DuelScene extends Phaser.Scene {
       else if (e.type === 'cure-wasted' && e.player === youId) lines.push(['CURE WASTED', '#ff9a5a', 20], [`${opp.name} is human. You lose the duel.`, '#c9ced8']);
       else if (e.type === 'cure-wasted') lines.push([`${opp.name} wasted a Cure on you.`, '#c9ced8']);
       else if (e.type === 'immune') lines.push([e.player === youId ? 'Still recovering from the cure: the bite did nothing.' : `${opp.name} is still recovering: no bite.`, '#c9ced8']);
-      else if (e.type === 'bitten' && e.player === youId) lines.push(['YOU WERE BITTEN', '#3ee67a', 22], ['You are a ZOMBIE now. Spread the strain.', '#3ee67a']);
+      else if (e.type === 'bitten' && e.player === youId) lines.push(['YOU WERE BITTEN', '#3ee67a', 22], [`You are a ZOMBIE now. Your Zombie card grows in ${RULES.zombieRegen / 1000}s.`, '#3ee67a']);
       else if (e.type === 'bitten' && e.by === youId) lines.push([`You bit ${opp.name}`, '#3ee67a', 20], ['They are one of you now.', '#c9ced8']);
       else if (e.type === 'stunned') lines.push([e.player === youId ? `You are stunned for ${RULES.stunTime / 1000} seconds` : `${opp.name} is stunned`, '#ffb04a']);
       else if (e.type === 'clue' && e.to === youId) lines.push([`CLUE: ${e.text}`, '#ffd27a']);
     }
+    const POINT_REASONS = { 'shot-zombie': 'you shot a zombie', 'shot-human': 'you shot a human', bite: 'bite', 'cure-wasted': 'Cure wasted' };
+    for (const e of out.effects) {
+      if (e.type === 'points' && e.player === youId) lines.push([`${e.amount > 0 ? '+' : ''}${e.amount} POINTS  ·  ${POINT_REASONS[e.reason] ?? e.reason}`, e.amount > 0 ? '#3ee6a0' : '#ff5a68']);
+    }
+    if (out.effects.some((e) => (e.type === 'bitten' || e.type === 'cured') && e.player === youId)) lines.push(['Your time bonus starts again from 0', '#ff5a68', 12]);
     lines.push([`Duel cooldown ${RULES.duelCooldown / 1000}s`, UI.dim, 12]);
     return lines;
   }

@@ -19,7 +19,7 @@
 3. [Roles](#-roles)
 4. [Game Rules](#-game-rules)
 5. [Cards](#-cards)
-6. [Duel Challenges](#-duel-challenges)
+6. [Duel Tables](#-duel-tables)
 7. [Map & Rooms](#-map--rooms)
 8. [Facility Events](#-facility-events)
 9. [Win Conditions](#-win-conditions)
@@ -83,26 +83,27 @@ At the start of each match, roles are secretly assigned.
 - Can see other infected players (green outline only they can see).
 - Looks exactly like a human to everyone else at first.
 
-### 🩺 Medic (optional role, Phase 5)
+### 🩺 Medic (optional role, Phase 5, idea)
 - One human may be secretly assigned as Medic.
-- Starts with an extra Cure card.
-- Can cure one infected player per match by winning a duel against them.
+- Idea: always starts with a Cure (still only one Gun **or** Cure, like everyone).
 
-### 🕵️ Scout (optional role, Phase 5)
+### 🕵️ Scout (optional role, Phase 5, idea)
 - One human may be a Scout.
-- Starts with an extra Gun card.
+- Idea: always starts with a Gun (still only one Gun **or** Cure, like everyone).
+
+> These roles are not built yet and must follow the rulebook ([`GAME_GUIDE.txt`](GAME_GUIDE.txt)) when they are.
 
 ---
 
 ## 📜 Game Rules
 
-> **The rulebook is [`GAME_GUIDE.txt`](GAME_GUIDE.txt) (v2).** If anything here disagrees with it, the guide wins. This section is a short summary.
+> **The rulebook is [`GAME_GUIDE.txt`](GAME_GUIDE.txt) (v2.3).** If anything here disagrees with it, the guide wins. This section is a short summary.
 
 ### 1. Match setup
-1. 6–15 players join a room using a 6-letter room code. Each player gets one of 15 neon colours.
-2. Each player picks a character skin and name.
-3. The server secretly assigns roles.
-4. Each player receives **7 cards** from a shuffled deck.
+1. 6–15 players: today you play against 5–14 bots; online rooms with 6-letter codes come in Phase 4. Each player gets one of 15 neon colours.
+2. Names and skins come with online play (bots are P2, P3…; you are P1).
+3. Roles are assigned in secret.
+4. Each player receives **7 cards** from a shuffled deck. Zombies never get a Gun or a Cure; a human gets one of them at most.
 5. Players spawn spread across the **Central Hall**, and a role card tells each player their secret role (infected players also see who their allies are).
 6. The match timer starts (default: **6 minutes**).
 
@@ -125,11 +126,11 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 | Cards played | Result |
 |---|---|
 | Number vs Number | Higher number wins and **takes the loser's card**. Same number = draw. |
-| Zombie vs Number | Zombie wins: the human is **bitten and turns at once** (unless they hold a **Cure**) |
+| Zombie vs Number | Zombie wins: the human is **bitten and turns at once** (a Cure in their hand does **not** help) |
 | Gun vs anything else | Gun wins: that player is **shot** and out of the match, **human or zombie**. Uses 1 of the Gun's 2 bullets; the shot is announced; the shooter is **stunned 8 seconds** |
 | Cure vs Zombie | No bite; the zombie is **cured**; the Cure user spends **60 seconds in quarantine** |
 | Cure vs Number | Against a zombie: the zombie is cured but wins the duel (Cure user to quarantine). Against a human: the Cure is **wasted** and you lose |
-| Same special vs same special | Draw |
+| Same special vs same special | Draw, cards go back (Gun vs Gun: each Gun still uses a bullet) |
 | Infected vs Infected | A **fake duel**: it looks like any duel from outside, but both keep their cards |
 
 **Clue:** when a human beats an infected player **with a number card**, they get a private hint like *"Your opponent's hands felt cold..."*, and the infected is **stunned for 12 seconds** (can't move or duel). A human who beats another human gets the same kind of hint 1 time in 8, so a clue is never proof.
@@ -142,8 +143,8 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 - Any **Gun or Cure** you hold is taken away and given **secretly** to a random other human who holds neither (or back to the refill supply if nobody can take it). No announcement, no hint.
 
 ### 5b. Hunger
-- An infected player must bite someone at least every **90 seconds**, counted from when they turned or last bit.
-- After that they are **STARVING**: every 20 seconds a hungry growl from their room is announced and they flare bright green for a moment (only people who can see them notice). A bite feeds them and resets the timer.
+- An infected player must bite someone at least every **60 seconds**, counted from when they turned or last bit.
+- After that they are **STARVING**: every 40 seconds a hungry growl from their room is announced and they flare bright green for a moment (only people who can see them notice). A bite feeds them and resets the timer.
 
 ### 5c. Cures and the 60-second quarantine
 - **A cured zombie** becomes human, loses all Zombie cards, stops being hungry and forgets the other zombies. They are **gagged for 60 seconds** (no quick-chat, no votes) and **recovering for 20 seconds** (pale tint, can't be bitten). They are not told who cured them.
@@ -177,7 +178,7 @@ Only **four kinds** of card, so anyone can learn them in a minute. The tension c
 | Card | Who has it | What it does |
 |---|---|---|
 | **1 – 9** | Everyone | Duel power. Higher number wins. |
-| 🧟 **Zombie** | Infected only | Beats **any** number card and **bites** the loser: they turn **at once**. Used up when played. Infected start with 2 and grow a new one every **40 seconds** (max 2). |
+| 🧟 **Zombie** | Infected only | Beats **any** number card and **bites** the loser: they turn **at once**. A zombie holds **one** at most. Used up when played; the next one grows **40 seconds** later (one bite per 40s). A new zombie grows their first one 40s after turning. |
 | 🔫 **Gun** | Humans only, rare (3 per deck); a Gun **or** a Cure, never both | **2 bullets.** Kills whoever you play it on, **human or zombie**. Every shot is announced (shooter's name, never the target's role); the shooter is stunned 8 seconds. |
 | 💉 **Cure** | Humans only, rare (3 per deck); a Gun **or** a Cure, never both | **Play it** on a zombie to cure them (on a human it is wasted). It never protects its holder: you can't cure yourself. Curing a zombie costs you 60 seconds in quarantine. |
 
@@ -206,7 +207,9 @@ There is one kind of duel: pick a card, flip, see the table above. The 10 duel t
 > ```
 > Ladders: Server Room-Lobby, Cafeteria-Locker Room, Reactor-Supply Room, Lobby-Medbay, Locker-Hall, Supply-Cure Lab, Medbay-Lab 1, Hall-Research Lab, Cure Lab-Storage.
 >
-> **Basement rooms:** Server Room (security cameras), Cafeteria (2 duel tables + a card refill), Reactor (the 2 pressure pads for Reactor Meltdown), Quarantine Cell (where voted-out players go).
+> **Basement rooms:** Server Room (security cameras, planned), Cafeteria (2 duel tables + a card refill), Reactor (the 2 pressure pads for Reactor Meltdown, planned), Quarantine Cell (where voted-out players go for good, and Cure users spend their 60 seconds).
+>
+> **Emergency Button:** Central Hall. The Medbay and Cure Lab are normal rooms (no stations).
 >
 > **Duel tables (10):** Central Hall ×2, Cafeteria ×2, Lobby, Locker Room, Lab 2, Storage, Server Room, Reactor.
 >
@@ -219,13 +222,13 @@ In game, press **M** (or tap the small map) to open the full building map with a
 
 ## 🌩 Facility Events
 
-Random events happen during each match to keep things tense. One event triggers every 60–90 seconds.
+*Planned for Phase 5, not in the game yet.* Random events happen during each match to keep things tense. One event triggers every 60–90 seconds. They will be adjusted to the rulebook when they are built.
 
 ### 🌑 Lights Out
 - The whole facility goes dark for 30 seconds.
 - Humans' vision shrinks to a tiny circle.
 - Infected players keep normal vision.
-- A **Flare** card lights up the area.
+- (The old Flare card idea was dropped with the four-card set.)
 
 ### 🔒 Lockdown
 - 2–3 random rooms seal shut for 45 seconds.
@@ -257,6 +260,8 @@ Random events happen during each match to keep things tense. One event triggers 
 | 🧟 **Infected** | Every human has turned, been shot or been voted out |
 | 🧟 **Infected** | The timer hits 0 and there are **more zombies than humans** left |
 
+**Top player (secret points):** each player also has a secret score: card points in hand (number = its value, Gun 20, Cure 30, Zombie 0) + banked points (Gun shot on a zombie +10, on a human −10, bite +15, wasted Cure −10 more) + a time bonus (+10 per full minute in your current role, back to 0 when you are bitten or cured). Curing a zombie costs the Cure (−30), wasting it costs −40. You see only your own score; all are revealed on the results screen, where the highest score gets the ★. Shot or voted-out players keep the score they had.
+
 **Rewards after each match:**
 - XP for playing, winning, infecting, surviving and correct votes.
 - Coins (used for cosmetics).
@@ -287,14 +292,14 @@ Everything is JavaScript.
 |---|---|---|
 | Game engine | **Phaser 3** | Best free 2D JavaScript game engine |
 | Build tool | **Vite** | Fast development server |
-| Maps & art | **Drawn in code** (`client/src/side/`) | No image files; edit the layout in `facility.js` |
+| Maps & art | **Drawn in code** (`client/src/side/`, `client/src/ui/cardArt.js`) | No image files; edit the layout in `facility.js` |
 | Multiplayer server | **Node.js + Colyseus** | Built for real-time multiplayer games, room system included |
 | Database | **Firebase** or **Supabase** | Player accounts, coins, skins |
 | Mobile app | **Capacitor** | Turns the web game into Android/iOS apps |
 | Ads | **Google AdMob** (via Capacitor plugin) | Rewarded ads |
 | Hosting | **Railway**, **Render** or **Fly.io** | Cheap Node.js server hosting |
 | Version control | **Git + GitHub** | Save progress and undo mistakes |
-| Art | **Kenney.nl**, **itch.io** asset packs, or custom | Free 2D assets to start |
+| Art | **Drawn in code** ("ink & neon") | All art is made at startup: no asset packs |
 
 ---
 
@@ -302,54 +307,36 @@ Everything is JavaScript.
 
 ```
 outbreak-deck/
-├── CLAUDE.md                  # Game design notes for Claude Code
+├── CLAUDE.md                  # Notes for Claude Code (summary + code map)
+├── GAME_GUIDE.txt             # The rulebook (v2.1): the code follows it
 ├── README.md                  # This file
 ├── package.json
-├── client/                    # The game (Phaser)
+├── vite.config.js
+├── client/                    # The game (Phaser 3 + Vite)
 │   ├── index.html
-│   ├── src/
-│   │   ├── main.js            # Game config and startup
-│   │   ├── scenes/
-│   │   │   ├── BootScene.js   # Load assets
-│   │   │   ├── MenuScene.js   # Main menu
-│   │   │   ├── LobbyScene.js  # Room code, waiting room
-│   │   │   ├── GameScene.js   # Main map gameplay
-│   │   │   ├── DuelScene.js   # Card duel overlay
-│   │   │   ├── MeetingScene.js# Emergency meeting and voting
-│   │   │   └── ResultScene.js # Win/lose screen
-│   │   ├── objects/
-│   │   │   ├── Player.js
-│   │   │   ├── Bot.js
-│   │   │   ├── Card.js
-│   │   │   └── DuelTable.js
-│   │   ├── systems/
-│   │   │   ├── DeckSystem.js
-│   │   │   ├── DuelSystem.js
-│   │   │   ├── InfectionSystem.js
-│   │   │   └── EventSystem.js
-│   │   ├── ui/
-│   │   │   ├── Joystick.js
-│   │   │   ├── HandUI.js
-│   │   │   └── HUD.js
-│   │   └── network/
-│   │       └── Client.js      # Connects to server
-│   └── assets/
-│       ├── maps/              # Tiled JSON maps
-│       ├── sprites/
-│       ├── cards/
-│       └── audio/
-├── server/                    # Multiplayer server (Node.js)
-│   ├── index.js
-│   ├── rooms/
-│   │   └── MatchRoom.js       # Game logic that runs on the server
-│   └── logic/
-│       ├── duel.js
-│       ├── deck.js
-│       └── events.js
-├── shared/                    # Code used by both client and server
-│   ├── constants.js           # Card values, timers, rules
-│   └── rules.js
-└── android/                   # Created by Capacitor
+│   └── src/
+│       ├── main.js            # Game config and startup
+│       ├── scenes/
+│       │   ├── BootScene.js   # Builds the textures
+│       │   ├── MenuScene.js   # Title, bots, difficulty, match length
+│       │   ├── SideScene.js   # The world: building, lights, weather, camera
+│       │   ├── SideUIScene.js # HUD, hand, buttons, prompts
+│       │   ├── DuelScene.js   # Card duel close-up
+│       │   ├── MeetingScene.js# Emergency meeting and voting
+│       │   └── ResultScene.js # Winners, roles and stats
+│       ├── game/
+│       │   ├── Session.js     # One match: players, duels, chases, cures, meetings
+│       │   └── BotBrain.js    # Bot AI + DIFFICULTY table
+│       ├── side/              # Facility layout, ink art, characters, map
+│       └── ui/                # Hand, buttons, toasts, joystick, card art
+├── shared/                    # Rules code with no Phaser (the server will reuse it)
+│   ├── constants.js           # Rooms, colours, card info, RULES numbers
+│   ├── cards.js               # Deck, card kinds
+│   ├── duel.js                # Which card wins
+│   └── match.js               # Match state and every rule
+├── tests/
+│   └── rules.test.js          # npm test
+└── (later) server/ and android/  # Phase 4 (Colyseus) and Phase 6 (Capacitor)
 ```
 
 ---
@@ -499,7 +486,7 @@ Each phase ends with something you can **play and test**. Don't start the next p
 - [x] Blood Test booth in the Medbay; public Clean badge for 60 seconds; positives are announced
 - [x] Incubation: bitten humans turn after 45 seconds; Cure Lab machine (recharges 60s) or a Cure card saves them
 - [x] Gun misfires are public and stun the shooter for 12 seconds
-- [x] Hunger: infected must bite every 90 seconds or start STARVING (a growl every 20s + a short green flare)
+- [x] Hunger: infected must bite every 90 seconds or start STARVING (a growl every 40s + a short green flare)
 - [x] Fake duels between infected players (they keep their cards)
 
 **Starting numbers for playtesting** (all in `RULES`): incubation 45s, Clean badge 60s, hunger 90s, Zombie regrow 40s. Target ~50% human wins. If zombies win too much, make incubation longer or hunger shorter; if humans win too much, do the opposite.
@@ -508,8 +495,11 @@ Each phase ends with something you can **play and test**. Don't start the next p
 
 ---
 
-### Rules v2 (GAME_GUIDE.txt)
-**Goal:** one clear rulebook. `GAME_GUIDE.txt` (v2) is now the source of truth; the code follows it.
+### Rules v2 – v2.3 (GAME_GUIDE.txt)
+**Goal:** one clear rulebook. `GAME_GUIDE.txt` is now the source of truth; the code follows it.
+v2.1 added: one Gun **or** Cure per human, no self-cure, and the bigger team wins at time-up.
+v2.2 added: a zombie holds **one** Zombie card and bites at most once per 40s (new zombies wait 40s for their first card); starving after 60s without a bite.
+v2.3 added: secret points and a ★ top player (see Win Conditions); the team result still decides the match.
 
 **Changed from Phase 3.6:**
 - [x] Bites turn you **at once** (no 45-second incubation); the Cure Lab machine is gone
@@ -519,11 +509,11 @@ Each phase ends with something you can **play and test**. Don't start the next p
 - [x] A human holds one special card at most: a Gun **or** a Cure
 - [x] Cured zombies: human again, no Zombie cards or hunger, forget their allies, gagged 60s, recovering 20s (can't be bitten)
 - [x] Cure users: 60s in the quarantine cell (can't move, duel, chat, vote or be voted out; still a human)
-- [x] Bitten Gun holders lose the Gun to a random human without one, in secret
+- [x] A bitten human's Gun or Cure goes to a random human holding neither, in secret
 - [x] Zombies never get Guns or Cures from the deal or refills; false clues 1 in 8
 - [x] Humans win if every zombie is shot, voted out or cured; at 0:00 the bigger team wins (a tie goes to the humans)
 
-**Balance numbers** (all in `RULES`): hunger 90s, Zombie regrow 40s, cure quarantine / gag 60s, recovering 20s, shot stun 8s, 2 bullets. Target ~50% human wins.
+**Balance numbers** (all in `RULES`): hunger 60s, 1 Zombie card max, Zombie regrow 40s after each bite, cure quarantine / gag 60s, recovering 20s, shot stun 8s, 2 bullets. Target ~50% human wins.
 
 ---
 

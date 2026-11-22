@@ -5,7 +5,7 @@ import { drawSky, drawSkyline } from '../side/inkArt.js';
 const hex = (h) => Phaser.Display.Color.HexStringToColor(h).color;
 
 /**
- * End of match: winning team, your result, and everyone's role and stats.
+ * End of match: winning team, your result, the top player, and everyone's role, stats and score.
  * data: { winner: 'humans'|'infected', youWon, youRole, players, settings, duration }
  */
 export default class ResultScene extends Phaser.Scene {
@@ -46,8 +46,18 @@ export default class ResultScene extends Phaser.Scene {
     this.add.text(W / 2, y, `${sub}  ·  you finished ${r.youRole === 'infected' ? 'INFECTED' : 'HUMAN'}`, { fontFamily: FONT, fontSize: '13px', fontStyle: '600', color: '#c9ced8' })
       .setOrigin(0.5).setLetterSpacing(1);
 
+    // secret scores are revealed: the highest is the top player (ties share the trophy)
+    const players = [...r.players].sort((a, b) => b.score - a.score || b.stats.won - a.stats.won);
+    const best = players[0]?.score ?? 0;
+    const tops = players.filter((p) => p.score === best);
+    const me = players.find((p) => p.id === 'you');
+    const myRank = me ? players.filter((p) => p.score > me.score).length + 1 : 0;
+    y += small ? 22 : 28;
+    const topLine = `★ TOP PLAYER${tops.length > 1 ? 'S' : ''}: ${tops.map((p) => p.name).join(', ')}  ·  ${best} PTS`;
+    this.add.text(W / 2, y, me ? `${topLine}     YOU: ${me.score} PTS (#${myRank})` : topLine, { fontFamily: FONT, fontSize: small ? '13px' : '15px', fontStyle: '700', color: '#ffd27a' })
+      .setOrigin(0.5).setLetterSpacing(2);
+
     // player table
-    const players = [...r.players].sort((a, b) => (a.role === b.role ? b.stats.won - a.stats.won : a.role === 'infected' ? -1 : 1));
     const cols = players.length > 8 && W > 700 ? 2 : 1;
     const rowH = small ? 22 : 28;
     const colW = Math.min(420, (W - 60) / cols);
@@ -55,11 +65,13 @@ export default class ResultScene extends Phaser.Scene {
     const perCol = Math.ceil(players.length / cols);
     for (let c = 0; c < cols; c++) {
       const x0 = W / 2 - (colW * cols) / 2 + c * colW + 10;
-      this.add.text(x0 + 24, top, 'PLAYER', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
-      this.add.text(x0 + colW * 0.42, top, 'ROLE', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
-      this.add.text(x0 + colW * 0.7, top, 'W-L', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
-      this.add.text(x0 + colW * 0.9, top, 'SHOT', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
-      this.add.text(x0 + colW * 0.8, top, 'INF', { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
+      const head = (x, label) => this.add.text(x, top, label, { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim }).setLetterSpacing(2);
+      head(x0 + 24, 'PLAYER');
+      head(x0 + colW * 0.36, 'ROLE');
+      head(x0 + colW * 0.62, 'W-L');
+      head(x0 + colW * 0.72, 'INF');
+      head(x0 + colW * 0.8, 'SHOT');
+      head(x0 + colW * 0.89, 'SCORE');
     }
     players.forEach((p, i) => {
       const c = Math.floor(i / perCol);
@@ -69,14 +81,15 @@ export default class ResultScene extends Phaser.Scene {
       if (you) this.add.graphics().fillStyle(0xffffff, 0.06).fillRoundedRect(x0 - 6, ry - 2, colW - 20, rowH - 4, 6);
       this.add.circle(x0 + 10, ry + rowH / 2 - 3, 4, hex(p.color));
       const style = { fontFamily: FONT, fontSize: small ? '13px' : '15px', fontStyle: '700', color: you ? '#ffffff' : '#c9ced8' };
-      this.add.text(x0 + 24, ry + rowH / 2 - 3, p.name, style).setOrigin(0, 0.5).setLetterSpacing(1);
+      this.add.text(x0 + 24, ry + rowH / 2 - 3, `${p.score === best ? '★ ' : ''}${p.name}`, style).setOrigin(0, 0.5).setLetterSpacing(1);
       // roles of shot and voted-out players stay secret during the match; here they are revealed
       const team = p.role === 'infected' ? (p.startedInfected ? 'PATIENT ZERO' : 'INFECTED') : p.stats.timesCured ? 'HUMAN (CURED)' : 'HUMAN';
       const roleText = p.quarantined ? `⛔ ${team}` : p.shot ? `☠ ${team}` : team;
-      this.add.text(x0 + colW * 0.42, ry + rowH / 2 - 3, roleText, { ...style, fontSize: '11px', color: p.quarantined ? '#ff9a5a' : p.shot ? '#ff7a3a' : p.role === 'infected' ? '#3ee67a' : '#e9e4d6' }).setOrigin(0, 0.5).setLetterSpacing(2);
-      this.add.text(x0 + colW * 0.7, ry + rowH / 2 - 3, `${p.stats.won}-${p.stats.lost}`, style).setOrigin(0, 0.5);
-      this.add.text(x0 + colW * 0.8, ry + rowH / 2 - 3, String(p.stats.infections), { ...style, color: p.stats.infections ? '#3ee67a' : '#6a707c' }).setOrigin(0, 0.5);
-      this.add.text(x0 + colW * 0.9, ry + rowH / 2 - 3, String(p.stats.kills), { ...style, color: p.stats.kills ? '#ff7a3a' : '#6a707c' }).setOrigin(0, 0.5);
+      this.add.text(x0 + colW * 0.36, ry + rowH / 2 - 3, roleText, { ...style, fontSize: '11px', color: p.quarantined ? '#ff9a5a' : p.shot ? '#ff7a3a' : p.role === 'infected' ? '#3ee67a' : '#e9e4d6' }).setOrigin(0, 0.5).setLetterSpacing(2);
+      this.add.text(x0 + colW * 0.62, ry + rowH / 2 - 3, `${p.stats.won}-${p.stats.lost}`, style).setOrigin(0, 0.5);
+      this.add.text(x0 + colW * 0.72, ry + rowH / 2 - 3, String(p.stats.infections), { ...style, color: p.stats.infections ? '#3ee67a' : '#6a707c' }).setOrigin(0, 0.5);
+      this.add.text(x0 + colW * 0.8, ry + rowH / 2 - 3, String(p.stats.kills), { ...style, color: p.stats.kills ? '#ff7a3a' : '#6a707c' }).setOrigin(0, 0.5);
+      this.add.text(x0 + colW * 0.89, ry + rowH / 2 - 3, String(p.score), { ...style, color: p.score === best ? '#ffd27a' : p.score < 0 ? '#ff5a68' : style.color }).setOrigin(0, 0.5);
     });
 
     // buttons

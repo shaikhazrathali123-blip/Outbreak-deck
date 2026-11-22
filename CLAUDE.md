@@ -1,6 +1,6 @@
 # Outbreak Deck: notes for Claude Code
 
-The rulebook is GAME_GUIDE.txt (v2): the code follows it, and it wins over README.md if they disagree.
+The rulebook is GAME_GUIDE.txt (v2.3): the code follows it, and it wins over README.md if they disagree.
 The rest of the design lives in README.md (rooms, events, phases). Read both before adding a feature.
 This file only gives a short summary and the current state of the code.
 
@@ -9,14 +9,15 @@ This file only gives a short summary and the current state of the code.
 - Humans vs. hidden Infected. Walk up to a player and challenge them: they ACCEPT (card duel) or RUN
   (a chase: the challenger has 8s to touch them, which forces the duel).
 - Only four card kinds (keep it that simple): numbers 1–9 (higher wins), ZOMBIE (infected only: beats any
-  number and BITES: the loser turns AT ONCE; regrows every 40s, max 2), GUN (humans only, 2 bullets:
+  number and BITES: the loser turns AT ONCE; ONE Zombie card max, the next grows 40s after it is used
+  (`startZombieRegrow`; new zombies wait 40s for their first)), GUN (humans only, 2 bullets:
   kills whoever it is played on, human or zombie; every shot announced without the target's role; shooter
   stunned 8s), CURE (humans only: only works PLAYED on a zombie,
   wasted on a human; it never protects its holder: you can't cure yourself). A human holds ONE of them at most:
   a Gun OR a Cure (`RULES.maxSpecials`). Curing a zombie sends the Cure user to the quarantine cell for 60s (gagged, frozen,
   can't be voted out); the cured player is gagged 60s and recovering 20s (can't be bitten).
 - A bitten human's Gun or Cure goes secretly to a random human holding neither (or back to the supply).
-- Infected must bite every 90s or start STARVING (growl + a 2.5s green flare every 20s; infection signs are
+- Infected must bite every 60s or start STARVING (growl + a 2.5s green flare every 40s; infection signs are
   kept subtle on purpose); two infected get a fake duel (both keep cards); Emergency Button in the Central
   Hall calls a meeting (30s quick chat, 15s vote, most votes = Quarantine Cell, role kept secret; the match
   clock pauses). No Blood Test, badge, incubation or Cure Lab machine any more (removed in v2).
@@ -25,6 +26,10 @@ This file only gives a short summary and the current state of the code.
 - Humans win if every zombie is shot, voted out or cured; infected win when no human is left. At 0:00 the
   bigger team wins (more zombies than humans = infected; a tie goes to the humans; a Cure user in the cell
   counts as a human; shot and voted-out players don't count): `Match.timeUpWinner()`.
+- Secret points (GAME_GUIDE section 2): score = card points in hand (number = value, Gun 20, Cure 30, Zombie 0)
+  + banked (`POINTS`: Gun shot zombie +10 / human −10, bite +15, wasted Cure −10 extra) + time bonus (`POINTS.perMinute` 10 per full minute in your current role, from
+  `roleSince`; reset when bitten or cured; paused by meetings). Only you see yours
+  (gold chip under the role chip); results reveal all, highest = ★ top player. The team result still wins the match.
 - Keep all names, art and characters original. Do not copy other games' look.
 
 ## Tech
@@ -57,10 +62,12 @@ This file only gives a short summary and the current state of the code.
   `canChallenge`, `settleDuel` (effects: card-taken, clue, stunned, killed, bitten, handed (secret Gun/Cure hand-off),
   cured, cell, cure-wasted, immune, fake, draw), `bite`, `cureZombie`, `sendToCell`, `trash` (Zombie cards
   never reach the deck), `tick` (events: zombie-grew / starving / growl / released), `canCallMeeting`,
-  `canVote` / `canBeVoted`, `shiftTimers` (meetings pause the match), `quarantine`, `refill`, `winner()`.
+  `canVote` / `canBeVoted`, `shiftTimers` (meetings pause the match), `quarantine`, `refill`, `winner()`,
+  score: `handPoints`, `timeBonus` (uses `match.time`, set by `tick`/`settleDuel`), `score(id)` (frozen in `finalScore` when shot or voted out), `award` (bank + a `points` effect), `ranking()`.
+- Point values: `POINTS` in `shared/constants.js`. Tests: `tests/score.test.js`.
 - Rule numbers live in `RULES` in `shared/constants.js` (hand size, Zombie regrow, chase timings, cooldown...).
   Card names/colours/descriptions: `CARD_INFO`.
-- Exhausted = no card you can play in a duel (only a Cure, or nothing).
+- Exhausted = no cards at all (every card is playable, a Cure too).
 
 ## Code
 - `side/facility.js`: the building: FLOORS (0 = basement, GROUND = 1), ROOMS (floor + x range), LADDERS, SPAWN,
@@ -102,12 +109,12 @@ This file only gives a short summary and the current state of the code.
 - `ui/Joystick.js`: floating joystick on the left half of the screen; read `joystick.vector`.
 - `shared/constants.js`: ROOMS (names + colours), MIN/MAX_PLAYERS (6/15), infectedCount(),
   15 PLAYER_COLORS, CARD_INFO, RULES.
-- `GAME_GUIDE.txt`: the rulebook (v2), written by the designer. Rule changes start there; keep code and README in sync.
+- `GAME_GUIDE.txt`: the rulebook (v2.3), written by the designer. Rule changes start there; keep code and README in sync.
 
 ## Status
 - Phases 0–3.6 and the v2 rules are done: a full single-player match vs bots following GAME_GUIDE.txt
   (instant bites, 2-bullet Guns, playable Cures + 60s cell, secret Gun hand-offs, hunger, fake duels, meetings).
-  Next: play-test toward ~50% human wins (hunger 90s, regrow 40s, cell/gag 60s, recovering 20s, shot stun 8s
+  Next: play-test toward ~50% human wins (hunger 60s, 1 Zombie card + regrow 40s after a bite, cell/gag 60s, recovering 20s, shot stun 8s
   in RULES; bot nerve values in DIFFICULTY), then Phase 4 (online multiplayer).
   Skipped for now: Safe Handshake, extra roles (Medic, Detective, Traitor), end-of-match recap.
 - All 10 duel tables play the same duel (the README's five table types were dropped to keep it simple).

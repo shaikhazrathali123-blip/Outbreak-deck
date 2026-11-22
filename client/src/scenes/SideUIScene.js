@@ -54,6 +54,11 @@ export default class SideUIScene extends Phaser.Scene {
     this.role = this.add.text(22, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffffff' }).setOrigin(0, 0.5).setLetterSpacing(3);
     this.setRole(gs.match.get(gs.youId).role);
 
+    // your secret score (nobody else can see it until the results)
+    this.scoreBg = this.add.graphics();
+    this.scoreText = this.add.text(22, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffd27a' }).setOrigin(0, 0.5).setLetterSpacing(3);
+    this.lastScore = null;
+
     // match timer (top centre)
     this.timerBg = this.add.graphics();
     this.timer = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '18px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(3);
@@ -116,8 +121,10 @@ export default class SideUIScene extends Phaser.Scene {
     this.hud.hint.setY(height - this.hand.height - 8);
     this.hud.drawHintBg();
     this.role.setY(70);
-    this.hud.fps.setY(88);
+    this.scoreText.setY(98);
+    this.hud.fps.setY(118);
     this.drawRole();
+    this.drawScore();
     this.timer.setPosition(width / 2, 22);
     this.timerBg.clear().fillStyle(UI.panel, 0.8).fillRoundedRect(width / 2 - 46, 8, 92, 28, 14).lineStyle(1, UI.line, 0.18).strokeRoundedRect(width / 2 - 46, 8, 92, 28, 14);
     this.hud.kicker.setY((height < 480 ? 44 : 54) + 12);
@@ -156,6 +163,38 @@ export default class SideUIScene extends Phaser.Scene {
     const color = Phaser.Display.Color.HexStringToColor(this.roleColor ?? '#e9e4d6').color;
     const w = this.role.width + 26;
     this.roleBg.clear().fillStyle(UI.panel, 0.78).fillRoundedRect(12, 59, w, 22, 11).lineStyle(1, color, 0.6).strokeRoundedRect(12, 59, w, 22, 11);
+  }
+
+  /** Your score chip; a floating +N / -N whenever it changes. */
+  updateScore() {
+    const session = this.gameScene.session;
+    const score = session.match.score(session.youId);
+    if (score === this.lastScore) return;
+    const delta = this.lastScore === null ? 0 : score - this.lastScore;
+    this.lastScore = score;
+    // the time bonus: +10 per full minute in your role, lost when the role changes
+    const bonus = session.match.timeBonus(session.youId);
+    const bonusDelta = this.lastBonus === undefined || session.match.get(session.youId).finalScore !== null ? 0 : bonus - this.lastBonus;
+    this.lastBonus = bonus;
+    const role = session.match.get(session.youId).role === 'infected' ? 'ZOMBIE' : 'HUMAN';
+    const why = bonusDelta > 0 ? `  ·  ${bonus / 10} MIN AS ${role}` : bonusDelta < 0 ? '  ·  TIME BONUS LOST' : '';
+    this.scoreText.setText(`SCORE ${score}  ·  SECRET`);
+    this.drawScore();
+    if (!delta || !this.scoreText.visible) return;
+    const pop = this.add
+      .text(this.scoreText.x + this.scoreText.width + 22, this.scoreText.y, `${delta > 0 ? '+' : ''}${delta}${why}`, {
+        fontFamily: FONT, fontSize: why ? '13px' : '16px', fontStyle: '700', color: delta > 0 ? '#3ee6a0' : '#ff5a68',
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(60);
+    this.tweens.add({ targets: pop, y: pop.y - 18, alpha: 0, duration: 1600, ease: 'Cubic.out', onComplete: () => pop.destroy() });
+    this.tweens.add({ targets: this.scoreText, scale: 1.15, duration: 120, yoyo: true });
+  }
+
+  drawScore() {
+    if (!this.scoreText.text) return;
+    const w = this.scoreText.width + 26;
+    this.scoreBg.clear().fillStyle(UI.panel, 0.78).fillRoundedRect(12, 87, w, 22, 11).lineStyle(1, 0xf2b84a, 0.6).strokeRoundedRect(12, 87, w, 22, 11);
   }
 
   /** A meeting pulls everyone to the Central Hall: hide the gameplay HUD while it runs. */
@@ -310,7 +349,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.hud.setVisible(on);
     this.hand.setVisible(on);
     this.joystick.setEnabled(on);
-    for (const o of [this.role, this.roleBg]) o.setVisible(on);
+    for (const o of [this.role, this.roleBg, this.scoreText, this.scoreBg]) o.setVisible(on);
     if (!on) {
       this.challenge.set(null);
       this.action.set(null);
@@ -350,6 +389,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.timer.setText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`).setColor(left <= 30 ? '#ff4a5a' : '#ffffff');
     this.updateChase(gs.now(), time);
     this.updateRoleChip();
+    this.updateScore();
     if (this.playing === false || gs.mapOpen || session.over || session.meeting) return;
     this.action.set(session.yourAction());
 

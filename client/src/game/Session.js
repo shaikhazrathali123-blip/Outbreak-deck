@@ -448,7 +448,7 @@ export default class Session {
 
   youInfected(byId) {
     this.emit('role-changed', 'infected');
-    this.emit('toast', `${this.name(byId)} BIT you. You are a ZOMBIE now. Spread the strain.`, '#3ee67a', 6000);
+    this.emit('toast', `${this.name(byId)} BIT you. You are a ZOMBIE now. Your first Zombie card grows in ${RULES.zombieRegen / 1000}s.`, '#3ee67a', 6000);
     const allies = this.match.living('infected').filter((p) => p.id !== YOU).map((p) => this.name(p.id));
     if (allies.length) this.emit('toast', `Fellow infected: ${allies.join(', ')}`, '#3ee67a', 6000);
     this.scene.cameras.main.flash(500, 40, 200, 110);
@@ -487,7 +487,7 @@ export default class Session {
         if (you) this.emit('toast', 'You are out of quarantine. Back to it.', '#3ee6d0', 3500);
       }
       if (e.type === 'starving') {
-        if (you) this.emit('toast', 'You are STARVING. Every 20s you growl and flare green for a moment. Bite someone!', '#b4ff3a', 6000);
+        if (you) this.emit('toast', `You are STARVING. Every ${RULES.growlEvery / 1000}s you growl and flare green for a moment. Bite someone!`, '#b4ff3a', 6000);
         this.updateGlows();
       }
       if (e.type === 'growl' || e.type === 'starving') {
@@ -884,6 +884,7 @@ export default class Session {
       shot: p.shot,
       startedInfected: p.startedInfected,
       stats: { ...p.stats },
+      score: this.match.score(p.id),
     }));
     this.emit('match-over', { winner, reason, youWon, youRole: you.role, players, settings: this.settings, duration: this.now() - this.startedAt });
   }
