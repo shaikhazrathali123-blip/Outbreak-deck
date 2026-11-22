@@ -1,5 +1,5 @@
 // Card faces in the ink & neon style, drawn on canvases at 2x for crisp text.
-// Four kinds only: numbers 1–9, Zombie, Gun, Cure. cardTexture() returns a key (cached).
+// Four kinds only: numbers 1–9, Zombie, Gun (with its bullets), Cure. cardTexture() returns a key (cached).
 import { CARD_INFO } from '../../../shared/constants.js';
 
 export const CARD_W = 88; // logical size; textures are 2x
@@ -109,6 +109,16 @@ function drawFace(c, card) {
   }
   icon(c, card.kind, W / 2, H / 2 - 14, 104, info.color);
   text(c, info.name.toUpperCase(), W / 2, H - 46, 28, '#ffffff', 700, 4);
+  if (card.kind === 'gun') {
+    // bullets left, as rounds along the top
+    const n = card.bullets ?? 2;
+    for (let i = 0; i < 2; i++) {
+      c.beginPath();
+      c.roundRect(W / 2 - 22 + i * 30, 30, 14, 30, 6);
+      c.fillStyle = i < n ? info.color : 'rgba(233,228,214,0.14)';
+      c.fill();
+    }
+  }
 }
 
 function drawBack(c) {
@@ -131,7 +141,8 @@ function drawBack(c) {
   text(c, 'OUTBREAK', W / 2, H - 34, 15, 'rgba(233,228,214,0.6)', 700, 5);
 }
 
-const faceKey = (card) => (card === 'back' ? 'card-back' : card.kind === 'number' ? `card-n${card.value}` : `card-${card.kind}`);
+const faceKey = (card) =>
+  card === 'back' ? 'card-back' : card.kind === 'number' ? `card-n${card.value}` : card.kind === 'gun' ? `card-gun${card.bullets ?? 2}` : `card-${card.kind}`;
 
 /** Texture key for a card (or 'back'), drawing it the first time it's needed. */
 export function cardTexture(scene, card) {

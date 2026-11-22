@@ -58,7 +58,7 @@ export const SPAWN = { floor: GROUND, x: 170 };
 
 // Furniture: [type, x, options]. Drawn in ink with neon details (see inkArt.js).
 // x is the left edge, except for centred pieces (helix, duelTable, emergencyButton,
-// bloodTest, cureMachine, bigTank, holoTable, chair, redCross, clock, reactorCore, pad).
+// cureMachine, bigTank, holoTable, chair, redCross, clock, reactorCore, pad).
 // Keep ~40px clear around ladders.
 export const FURNITURE = {
   // ---------------------------------------------------------- basement
@@ -97,8 +97,8 @@ export const FURNITURE = {
   ],
   // ---------------------------------------------------------- floor 2
   medbay: [
-    ['bed', 20, { w: 100 }], ['ivStand', 135], ['bloodTest', 205], ['redCross', 440], ['nurseDesk', 360, { w: 160 }],
-    ['medCart', 530], ['poster', 455, { title: 'WASH HANDS' }],
+    ['bed', 30, { w: 150 }], ['ivStand', 195], ['redCross', 440], ['nurseDesk', 360, { w: 160 }],
+    ['medCart', 530], ['poster', 230, { title: 'WASH HANDS' }],
   ],
   hall: [
     ['helix', 1100], ['duelTable', 960], ['duelTable', 1340],
@@ -146,8 +146,5 @@ const spotOf = (type) => {
   }
   throw new Error(`No ${type} on the map`);
 };
-// Stations: stand still at the Blood Test (Medbay) or the Cure machine (Cure Lab);
-// the Emergency Button (Central Hall) calls a meeting.
-export const BLOOD_TEST = spotOf('bloodTest');
-export const CURE_STATION = spotOf('cureMachine');
+// The Emergency Button (Central Hall) calls a meeting.
 export const EMERGENCY_BUTTON = spotOf('emergencyButton');

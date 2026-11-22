@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PLAYER_COLORS, RULES, PLAYER_SPEED, ROOMS as ROOM_INFO } from '../../../shared/constants.js';
 import { Match, assignRoles, tallyVotes } from '../../../shared/match.js';
 import { createRng } from '../../../shared/cards.js';
-import { ORIGIN_X, FLOORS, ROOMS, DUEL_TABLES, SUPPLY_BOXES, BLOOD_TEST, CURE_STATION, EMERGENCY_BUTTON } from '../side/facility.js';
+import { ORIGIN_X, FLOORS, ROOMS, DUEL_TABLES, SUPPLY_BOXES, EMERGENCY_BUTTON } from '../side/facility.js';
 import Actor from '../side/Actor.js';
 import BotBrain from './BotBrain.js';
 
@@ -13,9 +13,9 @@ const ESCAPE_COOLDOWN = 4000; // after a chase, neither can be challenged again 
 const rand = (a, b) => a + Math.random() * (b - a);
 
 /**
- * One match: players (you + bots), roles, the shared Match rules, challenges,
- * chases, duels, kills, bites and incubation, hunger, infection signs, refills,
- * the Blood Test and Cure machine, emergency meetings + votes, the timer and the win check.
+ * One match (rules: GAME_GUIDE.txt): players (you + bots), roles, the shared Match rules,
+ * challenges, chases, duels, shots, instant bites, cures and the 60s cure cell, hunger,
+ * infection signs, refills, emergency meetings + votes, the timer and the win check.
  * Talks to the HUD through scene events: toast, hand-changed, role-changed,
  * duel-open, challenge-request, challenge-cancel, chase, you-died, you-quarantined,
  * meeting (true/false), match-over.
@@ -68,7 +68,6 @@ export default class Session {
     this.pending = null;
     this.refill = new Map();
     this.signs = new Map();
-    this.using = new Map(); // id -> { kind: 'test'|'cure', ms } while standing at a station
     this.meeting = null; // see startMeeting()
     this.meetingQueued = null; // caller id, while your duel screen is still open
     this.nextWatchdog = 0;
@@ -140,9 +139,10 @@ export default class Session {
     return this.chases.find((c) => c.chaser.id === id || c.runner.id === id) ?? null;
   }
 
-  /** Stunned players can't move. */
+  /** Stunned players and Cure users in the cell can't move. */
   isFrozen(id) {
-    return this.now() < this.match.get(id).stunnedUntil;
+    const now = this.now();
+    return now < this.match.get(id).stunnedUntil || this.match.inCell(id, now);
   }
 
   /** Can `a` challenge `b` right now (rules + neither busy or in a chase)? */
@@ -190,8 +190,6 @@ export default class Session {
   // ------------------------------------------------------------ challenges
   challenge(fromId, toId) {
     if (this.over || this.meeting || !this.canDuel(fromId, toId)) return false;
-    this.using.delete(fromId);
-    this.using.delete(toId);
     const from = this.actors.get(fromId);
     const to = this.actors.get(toId);
     this.busy.add(fromId).add(toId);
@@ -368,75 +366,90 @@ export default class Session {
     this.busy.delete(aId);
     this.busy.delete(bId);
     for (const e of out.effects) {
-      if (e.type === 'bitten') {
-        if (e.player === YOU) this.youBitten(e.by);
-        this.brains.get(e.player)?.onBitten(e.by);
-        const hunter = this.brains.get(e.by);
-        if (hunter) hunter.lurkUntil = this.now() + hunter.cfg.lurk;
-        if (e.by === YOU) this.emit('toast', `You bit ${this.name(e.player)}. They turn in ${RULES.incubation / 1000}s.`, '#3ee67a', 4000);
-      }
+      if (e.type === 'bitten') this.onBitten(e.player, e.by);
       if (e.type === 'killed') this.onKilled(e.player, e.by);
-      if (e.type === 'cured') {
-        // the Zombie card gave the attacker away
-        this.brains.get(e.player)?.suspect(e.by, 10, `My Cure stopped ${this.name(e.by)}'s Zombie card!`);
-        if (e.player === YOU) this.emit('toast', `Your Cure saved you. ${this.actors.get(e.by).name} is INFECTED!`, '#3e8bff', 6000);
-      }
+      if (e.type === 'cured') this.onCured(e.player, e.by);
+      if (e.type === 'cell') this.toCell(e.player);
+      if (e.type === 'handed' && e.to === YOU) this.emit('hand-changed'); // no announcement, no hint
+      if (e.type === 'cure-wasted') this.brains.get(e.player)?.onCureWasted(e.player === aId ? bId : aId);
       if (e.type === 'clue') {
         if (e.to === YOU) this.emit('toast', `CLUE about ${this.actors.get(e.about).name}: ${e.text}`, '#ffd27a', 7000);
         else this.brains.get(e.to)?.noteClue(e.about, e.genuine);
       }
-      if (e.type === 'misfire') this.onMisfire(e.player, e.target);
       if (e.type === 'stunned') this.toastFor(e.player, `You are stunned for ${RULES.stunTime / 1000} seconds`, '#ffb04a', 4000);
     }
     if (aId === YOU || bId === YOU) this.emit('hand-changed');
     this.checkWin();
   }
 
-  /** A Gun killed an infected player: they drop to the floor for everyone to see. */
+  /** Someone was shot: they drop to the floor. Everyone hears who fired, nobody learns the target's role. */
   onKilled(id, by) {
     const a = this.actors.get(id);
     const shooter = this.actors.get(by);
     a.sprite.anims.stop();
     a.sprite.setTint(0x6a707c).setFlipX(false);
-    a.sprite.preFX?.clear();
+    if (a.glow) a.sprite.preFX?.remove(a.glow);
     a.glow = null;
+    a.glowKind = null;
     this.scene.tweens.add({ targets: a.sprite, angle: -90, alpha: 0.85, duration: 450, ease: 'Bounce.out' });
     a.tag?.setText(`☠ ${a.name}`).setColor('#8a909c');
     this.brains.delete(id);
-    for (const b of this.brains.values()) b.suspicion.delete(id);
-    // everyone hears the shot
-    this.emit('toast', `☠ ${shooter.name} shot ${a.name}. ${a.name} was INFECTED.`, '#ff7a3a', 5000);
+    for (const b of this.brains.values()) b.onShot(by, id);
+    this.emit('toast', `☠ ${this.name(by)} shot ${this.name(id)}.`, '#ff7a3a', 5000);
+    this.toastFor(by, `You are stunned for ${RULES.shotStun / 1000} seconds after the shot`, '#ffb04a', 3500);
     if (id === YOU) {
       this.emit('you-died', { by: shooter.name });
       this.scene.cameras.main.shake(400, 0.015);
     }
   }
 
-  /** A misfire is loud: everyone hears it, and the shooter is stunned. */
-  onMisfire(shooterId, targetId) {
-    const shooter = this.name(shooterId);
-    const target = this.name(targetId);
-    this.emit('toast', `💥 ${shooter}'s Gun MISFIRED on ${target}. ${shooter} is stunned ${RULES.stunTime / 1000}s.`, '#ff9a5a', 5000);
-    for (const b of this.brains.values()) {
-      if (b.a.id === targetId) b.suspect(shooterId, 1.5, `${shooter} pulled a Gun on me. Why so sure?`);
-      else if (b.a.id !== shooterId) {
-        b.suspect(targetId, 0.6, `${shooter} was sure enough about ${target} to shoot`);
-        b.suspect(shooterId, 0.3);
-      }
+  /** A Zombie card bit a human: they are a zombie now. Nobody else is told. */
+  onBitten(id, by) {
+    const hunter = this.brains.get(by);
+    if (hunter) hunter.lurkUntil = this.now() + hunter.cfg.lurk;
+    this.brains.get(id)?.onTurned();
+    if (id === YOU) {
+      this.youInfected(by);
+      this.emit('hand-changed');
+    }
+    if (by === YOU) this.emit('toast', `You bit ${this.name(id)}. They are one of you now.`, '#3ee67a', 4000);
+    this.updateGlows();
+  }
+
+  /** A Cure hit a zombie: human again, gagged 60s, recovering 20s. They aren't told who did it. */
+  onCured(id, by) {
+    this.brains.get(id)?.onCured();
+    if (id === YOU) {
+      this.emit('role-changed', 'human');
+      this.emit('hand-changed');
+      this.emit('toast', 'You were CURED. You are human again, and you forget the other zombies.', '#3e8bff', 6000);
+      this.emit('toast', `You are gagged for ${RULES.gagTime / 1000}s: no quick-chat, no voting.`, '#c9ced8', 6000);
+    }
+    this.updateGlows();
+  }
+
+  /** The Cure user goes to the quarantine cell for 60s. Everyone sees it, without a reason. */
+  toCell(id) {
+    const a = this.actors.get(id);
+    const cell = ROOMS.find((r) => r.id === 'quarantine');
+    const busyHere = this.match.list().filter((p) => p.quarantined || (p.id !== id && this.match.inCell(p.id, this.now()))).length;
+    a.state.mode = 'walk';
+    a.state.floor = cell.floor;
+    a.state.ladder = null;
+    a.sprite.setPosition(ORIGIN_X + cell.x0 + 60 + (busyHere % 8) * 30, FLOORS[cell.floor].y);
+    a.anim('idle');
+    this.brains.get(id)?.toCell();
+    this.emit('toast', '⛔ A player was quarantined.', '#ff9a5a', 4000);
+    if (id === YOU) {
+      this.emit('toast', `Your Cure worked. You are in quarantine for ${RULES.cureQuarantine / 1000}s (gagged, can't move).`, '#3e8bff', 6000);
+      this.scene.cameras.main.flash(300, 60, 120, 255);
     }
   }
 
-  youBitten(byId) {
-    this.emit('role-changed', 'bitten');
-    this.emit('toast', `YOU WERE BITTEN by ${this.name(byId)}. You turn in ${RULES.incubation / 1000}s!`, '#c6f03a', 7000);
-    this.emit('toast', 'Get to the CURE LAB machine (floor 2), or warn the others in a meeting.', '#3ee6d0', 7000);
-    this.scene.cameras.main.flash(400, 120, 200, 40);
-  }
-
-  youInfected() {
+  youInfected(byId) {
     this.emit('role-changed', 'infected');
-    this.emit('toast', 'You have turned. Spread the strain.', '#3ee67a', 6000);
-    const allies = this.match.living('infected').filter((p) => p.id !== YOU).map((p) => p.name);
+    this.emit('toast', `${this.name(byId)} BIT you. You are a ZOMBIE now. Spread the strain.`, '#3ee67a', 6000);
+    const allies = this.match.living('infected').filter((p) => p.id !== YOU).map((p) => this.name(p.id));
     if (allies.length) this.emit('toast', `Fellow infected: ${allies.join(', ')}`, '#3ee67a', 6000);
     this.scene.cameras.main.flash(500, 40, 200, 110);
   }
@@ -469,20 +482,10 @@ export default class Session {
         this.emit('hand-changed');
         this.emit('toast', 'A new ZOMBIE card grew in your hand', '#3ee67a');
       }
-      if (e.type === 'turned') {
-        if (you) {
-          this.youInfected();
-          this.emit('hand-changed');
-        }
-        this.brains.get(e.player)?.onTurned();
-        this.updateGlows();
+      if (e.type === 'released') {
+        this.brains.get(e.player)?.released();
+        if (you) this.emit('toast', 'You are out of quarantine. Back to it.', '#3ee6d0', 3500);
       }
-      if (e.type === 'cured' && you) {
-        this.emit('role-changed', 'human');
-        this.emit('hand-changed');
-        this.emit('toast', 'A Cure card stopped the infection. You are safe!', '#3e8bff', 5000);
-      }
-      if (e.type === 'cured') this.brains.get(e.player)?.onCured();
       if (e.type === 'starving') {
         if (you) this.emit('toast', 'You are STARVING. Every 20s you growl and flare green for a moment. Bite someone!', '#b4ff3a', 6000);
         this.updateGlows();
@@ -537,7 +540,6 @@ export default class Session {
 
     this.refillRing.clear();
     this.updateRefills(dt, youMoving);
-    this.updateStations(dt, youMoving);
     this.updateSigns(now);
     this.updateLabels(now);
     this.checkWin();
@@ -585,107 +587,26 @@ export default class Session {
     }
   }
 
-  // ------------------------------------------------------------ stations
-  /** Which station (if any) an actor stands at: the Emergency Button, the Blood Test or the Cure machine. */
+  // ------------------------------------------------------------ the Emergency Button
+  /** 'meeting' when an actor stands at the Emergency Button, else null. */
   stationAt(actor) {
     if (actor.state.mode !== 'walk') return null;
-    const near = (spot, range) => spot.floor === actor.floor() && Math.abs(spot.x - actor.x) < range;
-    if (near(EMERGENCY_BUTTON, RULES.meetingRange)) return 'meeting';
-    if (near(BLOOD_TEST, RULES.stationRange)) return 'test';
-    if (near(CURE_STATION, RULES.stationRange)) return 'cure';
-    return null;
+    const b = EMERGENCY_BUTTON;
+    return b.floor === actor.floor() && Math.abs(b.x - actor.x) < RULES.meetingRange ? 'meeting' : null;
   }
 
   /** The action button for you right now: { kind, label, note, enabled, color } or null. */
   yourAction() {
-    const you = this.you;
     if (this.meeting || this.over || !this.alive(YOU) || this.busy.has(YOU) || this.chaseOf(YOU)) return null;
-    const kind = this.stationAt(you);
-    const now = this.now();
-    if (kind === 'meeting') {
-      const c = this.match.canCallMeeting(YOU, now);
-      const note = this.meetingQueued ? 'CALLED' : c.ok ? 'CALL MEETING' : c.reason === 'used' ? 'USED' : `WAIT ${Math.ceil(c.wait / 1000)}s`;
-      return { kind, label: 'MEETING', note, enabled: c.ok && !this.meetingQueued, color: '#ff3b4a' };
-    }
-    if (kind === 'test') return { kind, label: 'BLOOD TEST', note: this.using.has(YOU) ? 'TESTING…' : 'TEST ME', enabled: !this.using.has(YOU), color: '#ff6a78' };
-    if (kind === 'cure') {
-      const wait = this.match.cureStationReadyAt - now;
-      const note = this.using.has(YOU) ? 'CURING…' : wait > 0 ? `RECHARGE ${Math.ceil(wait / 1000)}s` : 'USE CURE';
-      return { kind, label: 'CURE', note, enabled: !this.using.has(YOU) && wait <= 0, color: '#3ee6d0' };
-    }
-    return null;
+    if (this.stationAt(this.you) !== 'meeting') return null;
+    const c = this.match.canCallMeeting(YOU, this.now());
+    const note = this.meetingQueued ? 'CALLED' : c.ok ? 'CALL MEETING' : c.reason === 'used' ? 'USED' : c.reason === 'in-cell' ? 'QUARANTINED' : `WAIT ${Math.ceil(c.wait / 1000)}s`;
+    return { kind: 'meeting', label: 'MEETING', note, enabled: c.ok && !this.meetingQueued, color: '#ff3b4a' };
   }
 
   /** You pressed the action button (Space). */
   doAction() {
-    const a = this.yourAction();
-    if (!a?.enabled) return;
-    if (a.kind === 'meeting') this.callMeeting(YOU);
-    else this.useStation(YOU, a.kind);
-  }
-
-  /** Start using the Blood Test / Cure machine: stand still to finish. */
-  useStation(id, kind) {
-    const actor = this.actors.get(id);
-    if (this.meeting || !this.alive(id) || this.busy.has(id) || this.stationAt(actor) !== kind || this.using.has(id)) return false;
-    this.using.set(id, { kind, ms: 0 });
-    return true;
-  }
-
-  updateStations(dt, youMoving) {
-    const g = this.refillRing;
-    this.stationHint = null;
-    for (const [id, use] of [...this.using]) {
-      const actor = this.actors.get(id);
-      const moving = id === YOU ? youMoving : actor.sprite.anims.currentAnim?.key.endsWith('walk');
-      if (!this.alive(id) || this.busy.has(id) || this.chaseOf(id) || moving || this.stationAt(actor) !== use.kind) {
-        this.using.delete(id);
-        this.brains.get(id)?.stationDone(use.kind, null);
-        if (id === YOU && moving) this.emit('toast', 'Stand still to use the machine', '#c9ced8', 1500);
-        continue;
-      }
-      use.ms += dt * 1000;
-      const total = use.kind === 'test' ? RULES.bloodTestTime : RULES.cureStationTime;
-      const t = Math.min(1, use.ms / total);
-      const color = use.kind === 'test' ? 0xff6a78 : 0x3ee6d0;
-      g.lineStyle(4, 0xffffff, 0.15).strokeCircle(actor.x, actor.y - 120, 12);
-      g.lineStyle(4, color, 1).beginPath().arc(actor.x, actor.y - 120, 12, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2).strokePath();
-      if (id === YOU) this.stationHint = use.kind === 'test' ? 'BLOOD TEST…  STAND STILL' : 'CURE MACHINE…  STAND STILL';
-      if (t < 1) continue;
-      this.using.delete(id);
-      if (use.kind === 'test') this.finishTest(id);
-      else this.finishCure(id);
-    }
-  }
-
-  /** Blood Test result: a positive is announced to everyone; clean gives a visible badge. */
-  finishTest(id) {
-    const now = this.now();
-    const actor = this.actors.get(id);
-    const res = this.match.bloodTest(id, now);
-    this.brains.get(id)?.stationDone('test', res);
-    if (res.positive) {
-      this.emit('toast', `🩸 BLOOD TEST POSITIVE: ${actor.name} carries the strain!`, '#ff4a5a', 7000);
-      this.scene.cameras.main.shake(200, 0.005);
-      for (const b of this.brains.values()) b.suspect(id, 8, `${actor.name} tested POSITIVE at the Blood Test!`);
-    } else if (id === YOU) {
-      this.emit('toast', `CLEAN. Everyone can see your badge for ${RULES.cleanBadge / 1000}s.`, '#3ee6d0', 4500);
-    }
-  }
-
-  /** Cure machine: saves a bitten player. Anyone nearby sees who used it. */
-  finishCure(id) {
-    const actor = this.actors.get(id);
-    const res = this.match.useCureStation(id, this.now());
-    this.brains.get(id)?.stationDone('cure', res);
-    for (const b of this.witnesses(actor)) b.suspect(id, 1.5, `I saw ${actor.name} use the Cure machine. Why would they need it?`);
-    if (id !== YOU) return;
-    if (res.cured) {
-      this.emit('role-changed', 'human');
-      this.emit('toast', 'The cure worked. You are fully human again.', '#3ee6d0', 5000);
-    } else if (res.reason === 'recharging') this.emit('toast', 'The machine is recharging', '#c9ced8');
-    else if (res.reason === 'too-late') this.emit('toast', 'Too late: the strain has already taken you.', '#3ee67a');
-    else this.emit('toast', 'Nothing happens. You were not bitten.', '#c9ced8');
+    if (this.yourAction()?.enabled) this.callMeeting(YOU);
   }
 
   // ------------------------------------------------------------ meetings
@@ -716,12 +637,11 @@ export default class Session {
     this.chases = [];
     this.awaiting.clear();
     this.busy.clear();
-    this.using.clear();
     this.refill.clear();
     this.refillRing.clear();
-    // everyone still in the match gathers in the Central Hall
+    // everyone still in the match gathers in the Central Hall (Cure users stay in the cell)
     const hall = ROOMS.find((r) => r.id === 'hall');
-    const present = Phaser.Utils.Array.Shuffle([...this.actors.values()].filter((a) => this.alive(a.id)));
+    const present = Phaser.Utils.Array.Shuffle([...this.actors.values()].filter((a) => this.alive(a.id) && !this.match.inCell(a.id, now)));
     present.forEach((a, i) => {
       a.state.mode = 'walk';
       a.state.floor = hall.floor;
@@ -746,16 +666,26 @@ export default class Session {
     this.emit('meeting', true);
   }
 
-  /** Living players (the voters, and the people you can vote for). */
+  /** Players still in the match. */
   present() {
     return this.match.list().filter((p) => p.alive);
+  }
+
+  /** Who may vote right now (not gagged). */
+  voters() {
+    return this.present().filter((p) => this.match.canVote(p.id, this.clock()));
+  }
+
+  /** Who may be voted out (not inside the 60s cure quarantine). */
+  candidates() {
+    return this.present().filter((p) => this.match.canBeVoted(p.id, this.clock()));
   }
 
   updateMeeting(now) {
     const m = this.meeting;
     if (m.phase === 'talk') {
       for (const b of this.brains.values()) {
-        if (!this.alive(b.a.id) || now < b.nextSpeakAt) continue;
+        if (!this.alive(b.a.id) || this.match.isGagged(b.a.id, this.clock()) || now < b.nextSpeakAt) continue;
         const msg = b.speak(m);
         b.afterSpeak(now, !!msg);
         if (msg) this.say({ ...msg, from: b.a.id });
@@ -768,12 +698,12 @@ export default class Session {
       }
     } else if (m.phase === 'vote') {
       for (const b of this.brains.values()) {
-        if (!this.alive(b.a.id) || m.votes.has(b.a.id) || now < b.voteAt) continue;
+        if (!this.match.canVote(b.a.id, this.clock()) || m.votes.has(b.a.id) || now < b.voteAt) continue;
         this.castVote(b.a.id, b.castVote(m));
       }
-      const everyone = this.present().every((p) => m.votes.has(p.id));
+      const everyone = this.voters().every((p) => m.votes.has(p.id));
       if (everyone || now >= m.phaseEnds) {
-        for (const p of this.present()) if (!m.votes.has(p.id)) m.votes.set(p.id, 'skip');
+        for (const p of this.voters()) if (!m.votes.has(p.id)) m.votes.set(p.id, 'skip');
         m.result = tallyVotes(m.votes);
         m.phase = 'result';
         m.phaseEnds = now + RULES.meetingResult;
@@ -790,19 +720,17 @@ export default class Session {
     for (const b of this.brains.values()) if (b.a.id !== msg.from && this.alive(b.a.id)) b.hear(msg, m);
   }
 
-  /** Quick chat: kind = accuse | vouch | clean | bitten | skip; target = a player id for accuse / vouch / bitten. */
+  /** Quick chat: kind = accuse | vouch | clean | skip; target = a player id for accuse / vouch. Gagged players can't. */
   youSay(kind, target = null) {
     const m = this.meeting;
     const now = this.now();
-    if (!m || m.phase !== 'talk' || !this.alive(YOU) || now - m.yourLastSay < 1500 || m.yourSays >= 8) return false;
+    if (!m || m.phase !== 'talk' || !this.match.canVote(YOU, this.clock()) || now - m.yourLastSay < 1500 || m.yourSays >= 8) return false;
     if ((kind === 'accuse' || kind === 'vouch') && !target) return false;
     const t = target ? this.name(target) : '';
-    const badge = this.match.get(YOU).cleanUntil - this.clock();
     const text = {
       accuse: `I think ${t} is infected.`,
       vouch: `${t} is fine. I trust them.`,
-      clean: badge > 0 ? `I tested CLEAN. Look at my badge (${Math.ceil(badge / 1000)}s left).` : "I'm clean, trust me.",
-      bitten: target ? `I was bitten by ${t}! I'll turn soon.` : "I was bitten! I'll turn soon.",
+      clean: "I'm clean, trust me.",
       skip: "No idea yet. Let's skip unless someone is sure.",
     }[kind];
     if (!text) return false;
@@ -814,8 +742,8 @@ export default class Session {
 
   castVote(id, target) {
     const m = this.meeting;
-    if (!m || m.phase !== 'vote' || m.votes.has(id) || !this.alive(id)) return false;
-    if (target !== 'skip' && !this.match.players.get(target)?.alive) return false;
+    if (!m || m.phase !== 'vote' || m.votes.has(id) || !this.match.canVote(id, this.clock())) return false;
+    if (target !== 'skip' && !(this.match.players.has(target) && this.match.canBeVoted(target, this.clock()))) return false;
     m.votes.set(id, target);
     return true;
   }
@@ -868,8 +796,8 @@ export default class Session {
   }
 
   /**
-   * Infection signs, visible to everyone: a slow green tint, an occasional
-   * twitch and faintly glowing footprints.
+   * Infection signs, visible to everyone but subtle: a faint tint, a rare green
+   * flicker, an occasional twitch and faintly glowing footprints.
    */
   updateSigns(now) {
     for (const actor of this.actors.values()) {
@@ -877,7 +805,12 @@ export default class Session {
       let sign = this.signs.get(actor.id);
       if (!sign) this.signs.set(actor.id, (sign = { nextTwitch: now + 4000 + Math.random() * 5000, stepX: actor.x }));
       const t = this.signStrength(actor.id);
-      if (t === 0) continue;
+      if (t === 0) {
+        // human: no signs. A freshly cured player looks pale while recovering.
+        if (this.match.isRecovering(actor.id, now)) actor.sprite.setTint(0xc8ccd6);
+        else if (actor.sprite.isTinted) actor.sprite.clearTint();
+        continue;
+      }
       // Kept subtle on purpose: a barely-there tint and a rare green flicker, never a plain green suit.
       if (t > 0.3 && now > (sign.nextFlicker ?? 0)) {
         sign.nextFlicker = now + 8000 + Math.random() * 7000;
@@ -908,7 +841,7 @@ export default class Session {
       if (actor.id === YOU) continue;
       const p = this.match.get(actor.id);
       if (!p.alive) {
-        if (p.quarantined) actor.updateLabels('QUARANTINED', '');
+        if (p.quarantined) actor.updateLabels('QUARANTINED');
         else {
           actor.tag?.setPosition(actor.x + 40, actor.y - 30);
           actor.status?.setText('');
@@ -920,18 +853,17 @@ export default class Session {
       let text = '';
       if (inDuel.has(actor.id)) text = '⚔ DUEL';
       else if (chase) text = chase.runner === actor ? 'RUNNING!' : 'CHASING';
+      else if (this.match.inCell(actor.id, now)) text = `● QUARANTINE ${Math.ceil((p.cellUntil - now) / 1000)}`;
       else if (now < p.stunnedUntil) text = `STUNNED ${Math.ceil((p.stunnedUntil - now) / 1000)}`;
-      else if (this.using.has(actor.id)) text = this.using.get(actor.id).kind === 'test' ? 'TESTING…' : 'CURE MACHINE…';
       else if (this.match.isExhausted(actor.id)) text = 'NO CARDS';
-      const badge = this.match.hasBadge(actor.id, now) ? `✚ CLEAN ${Math.ceil((p.cleanUntil - now) / 1000)}` : '';
-      actor.updateLabels(text, badge);
+      actor.updateLabels(text);
     }
   }
 
   checkWin() {
     if (this.over) return;
     const w = this.match.winner();
-    if (w) return this.end(w, w === 'infected' ? 'all-infected' : 'all-killed');
+    if (w) return this.end(w, w === 'infected' ? 'all-infected' : 'all-zombies-gone');
     if (this.now() >= this.endsAt) this.end(this.match.timeUpWinner(), 'time');
   }
 
@@ -949,7 +881,7 @@ export default class Session {
       role: p.role,
       alive: p.alive,
       quarantined: p.quarantined,
-      bitten: p.turnsAt !== null,
+      shot: p.shot,
       startedInfected: p.startedInfected,
       stats: { ...p.stats },
     }));

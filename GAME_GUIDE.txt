@@ -1,5 +1,5 @@
 ================================================================
-                 OUTBREAK DECK  -  HOW TO PLAY
+                 OUTBREAK DECK  -  HOW TO PLAY  (v2)
 ================================================================
 
 THE IDEA IN ONE LINE
@@ -19,6 +19,8 @@ see your own role.
 
   HUMAN
     - Most players are human.
+    - Only humans can carry a GUN or a CURE. Zombies can never hold
+      them (see "LOSING GUNS AND CURES" in section 3).
 
   INFECTED (ZOMBIE)
     - A few players start infected:
@@ -30,20 +32,21 @@ see your own role.
       like a normal duel to everyone else, but both keep their cards.
     - The first infected player is called "PATIENT ZERO".
 
-  A human hit by a ZOMBIE card is BITTEN: 45 seconds later they turn
-  and switch to the zombie team (see section 6).
+  A human hit by a ZOMBIE card is BITTEN and TURNS INTO A ZOMBIE
+  AT ONCE. There is no waiting time (see section 6).
 
 
 ----------------------------------------------------------------
 2. HOW TO WIN
 ----------------------------------------------------------------
 
-  HUMANS WIN   if at least one human who is NOT bitten is left when
-               time runs out,
-               OR if every zombie has been shot or quarantined (and
-               nobody is still bitten).
-  ZOMBIES WIN  if every human has turned, been shot or quarantined,
-               OR time runs out and every human left is bitten.
+  HUMANS WIN   if at least one human is left when time runs out,
+               OR if every zombie has been shot, voted out, or cured.
+
+  ZOMBIES WIN  if every human has turned, been shot or voted out.
+
+  A human in a temporary CURE QUARANTINE (section 3) still counts
+  as a human for winning.
 
   Match length: 4, 6 or 8 minutes (choose in the menu).
 
@@ -57,27 +60,84 @@ see your own role.
 
   ZOMBIE   (only zombies have it)
            Beats ANY number card, even a 9, and BITES the loser.
-           They turn into a zombie 45 seconds later.
+           The loser turns into a zombie IMMEDIATELY.
            Zombies start with 2 and grow a new one every 40 seconds
            (never more than 2). Each Zombie card is used up when played.
 
-  GUN      (rare)
-           If the other player plays a ZOMBIE card, your Gun KILLS them.
-           But if they play a number card, your Gun MISFIRES: you lose,
-           EVERYONE hears it, and you are STUNNED for 12 seconds.
-           So only shoot when you are sure they are a zombie!
+  GUN      (rare, humans only, max 1 per player)
+           A Gun has 2 BULLETS. Each time you play it, one bullet is
+           used. When both are gone, the card is used up.
+           The Gun KILLS whoever you play it on, human or zombie:
+             - Gun vs ZOMBIE card   -> the zombie is dead.
+             - Gun vs number card   -> that player is dead, human or
+                                       zombie.
+           A dead player is out of the match. Their role stays SECRET.
+           EVERY SHOT IS ANNOUNCED to everyone ("a player was shot"),
+           with the shooter's name but NOT the target's role.
+           After any shot, the shooter is STUNNED for 8 seconds.
+           Zombies can never hold a Gun.
+           Killing a human helps the zombies. Only shoot when sure!
 
-  CURE     (rare)
-           Works by itself. If a Zombie card would bite you, the Cure
-           is used up instead and you stay human. You also learn that
-           your opponent is a zombie. If you are already bitten and
-           pick up a Cure, it cures you.
+  CURE     (rare, humans only)
+           Works two ways.
+           A) PLAY it in a duel against a zombie:
+                - Cure vs ZOMBIE card: you are not bitten, the Cure is
+                  used up, and the zombie is CURED (becomes human).
+                - Cure vs number card, opponent is a zombie: the zombie
+                  is cured, but they win that duel with their number
+                  (no bite, since they played a number).
+                - Cure vs number card, opponent is human: the Cure is
+                  WASTED and you lose the duel. Nothing else happens.
+           B) HOLD it: if a Zombie card would bite you, the Cure is
+              used up instead, you stay human, and the zombie is cured.
+           A bitten player is already a zombie, so a Cure picked up
+           later does nothing for them. The Cure only works BEFORE the
+           bite: held in your hand, or played in a duel.
+
+           WHEN A ZOMBIE IS CURED:
+             - They become human, lose all Zombie cards, and hunger
+               stops.
+             - They forget the other zombies (green outlines gone).
+             - They are GAGGED for 60 seconds (no quick-chat, no
+               accusing, no voting).
+             - They are "RECOVERING" for 20 seconds (pale tint) and
+               cannot be bitten.
+             - They are not told who cured them.
+
+           THE CURE USER IS QUARANTINED FOR 60 SECONDS:
+             - They go to the quarantine cell and cannot move, duel,
+               or call a meeting.
+             - They are gagged: no quick-chat, no accusing, no voting,
+               even during a meeting.
+             - They cannot be bitten or voted out while inside.
+             - The timer pauses during meetings.
+             - Everyone sees "a player was quarantined", with no reason.
+             - Wasted Cure (opponent was human): NO quarantine.
+
+  LOSING GUNS AND CURES (when a holder is bitten):
+           The moment a human is BITTEN, they turn and every Gun and
+           Cure they hold is DISCARDED. They can never use them as a
+           zombie.
+           Each discarded card then goes to a RANDOM other human who is
+           still in the match and not a zombie.
+             - NO announcement and NO hint: nobody is told that a card
+               was discarded, who lost it, or who received it. The new
+               owner just finds it in their hand.
+             - A Gun never goes to someone who already holds a Gun
+               (max 1 per player). A Cure goes the same way.
+             - If no other human can receive it, the card goes back to
+               the refill supply.
+           (A held Cure is used up by the bite itself and stops it, so
+           this only affects Guns.)
 
   Quick table:
      number vs number  ->  higher number wins
-     ZOMBIE vs number  ->  ZOMBIE wins, the human is bitten
+     ZOMBIE vs number  ->  ZOMBIE wins, the human turns at once
      GUN    vs ZOMBIE  ->  GUN wins, the zombie is dead
-     GUN    vs number  ->  the number wins (misfire: public + stun)
+     GUN    vs number  ->  GUN wins, that player is dead
+     CURE   vs ZOMBIE  ->  no bite, zombie cured, Cure user quarantined
+     CURE   vs number  ->  zombie: cured, number wins the duel
+                           human: Cure wasted, you lose
      same vs same      ->  draw, cards go back
 
 
@@ -102,8 +162,12 @@ STEP 3 - PICK A CARD
 
 STEP 4 - RESULT
    - Number win: the winner takes the loser's card.
-   - Zombie win: the loser is bitten (unless they have a Cure).
-   - Gun vs Zombie: the zombie is shot and is out of the match.
+   - Zombie win: the loser is bitten and turns at once (unless they
+     have a Cure).
+   - Gun: the target is shot and is out of the match; the shot is
+     announced and the shooter is stunned for 8 seconds.
+   - Cure: the zombie is cured and the Cure user is quarantined for
+     60 seconds (see section 3).
    - A human who beats a zombie with a NUMBER card also gets a CLUE,
      and the zombie is STUNNED for 12 seconds (cannot move or duel).
    After a duel, both players wait 10 seconds before they can duel again.
@@ -125,22 +189,19 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-6. BITTEN: THE 45 SECONDS
+6. BITTEN: YOU TURN AT ONCE
 ----------------------------------------------------------------
 
-   When a Zombie card hits you, you are BITTEN. Your role chip says
-   "BITTEN - TURNING IN 0:45". You still play as a human until then.
-   Nobody knows except you and the zombie who bit you. Choose:
+   When a Zombie card beats you, you are BITTEN and turn into a
+   zombie right away. Your role chip changes to ZOMBIE, you see the
+   other zombies (green outline), and you get a Zombie card.
+   Nobody else is told. They only find out by watching you.
 
-     - RUN TO A CURE: the CURE machine in the CURE LAB (floor 2).
-       Press it and stand still 6 seconds. After it cures someone it
-       needs 60 seconds to recharge. Anyone nearby sees you use it.
-     - WARN PEOPLE: call a meeting and say who bit you.
-     - HIDE IT: say nothing... and become a zombie.
+   Your only protection is a CURE in your hand BEFORE the bite.
+   Any Gun or Cure you hold is discarded and given secretly to a
+   random human (section 3).
 
-   When the time is up you TURN: you grow a Zombie card and you are
-   on the zombie team.
-
+   Your hunger clock starts at the moment you turn (section 7).
 
 ----------------------------------------------------------------
 7. HUNGER (zombies)
@@ -154,17 +215,10 @@ STEP 4 - RESULT
 
 
 ----------------------------------------------------------------
-8. BLOOD TEST AND THE CLEAN BADGE
+8. (REMOVED)
 ----------------------------------------------------------------
 
-   The BLOOD TEST booth is in the MEDBAY (floor 2). Press it and stand
-   still 4 seconds.
-     - CLEAN: you get a CLEAN badge over your head for 60 seconds.
-       Everyone can see it.
-     - POSITIVE (zombie OR bitten): the whole facility is told.
-
-   The badge only proves you were clean WHEN YOU TOOK THE TEST.
-   Ask yourself: were they tested before or after they met the zombie?
+   The Blood Test and the Clean Badge are no longer in the game.
 
 
 ----------------------------------------------------------------
@@ -176,16 +230,21 @@ STEP 4 - RESULT
      - No meeting in the first 30 seconds, or within 30 seconds of the
        last one.
    Everyone still in the match is pulled into the hall and the match
-   clock PAUSES (so do the bite timer, hunger, badges and stuns).
+   clock PAUSES (so do hunger, quarantine timers and
+   stuns).
 
    1. DISCUSS (30 seconds): tap a player, then a quick-chat button:
-        ACCUSE, VOUCH, I'M CLEAN, I WAS BITTEN, SKIP.
-      Anyone can lie. But badges are public: if someone says "I'm
-      clean" and has no badge, everyone can see the lie.
+        ACCUSE, VOUCH, I'M CLEAN, SKIP.
+      Anyone can lie. "I'M CLEAN" is only a claim now: nothing can
+      prove it.
    2. VOTE (15 seconds): tap a player, then VOTE. Or SKIP VOTE.
    3. RESULT: the player with the most votes goes to the QUARANTINE
       CELL and is out of the match. Their role stays SECRET.
       A tie, or as many skips as the top votes = nobody goes.
+
+   GAGGED PLAYERS (cure-quarantined users and freshly cured zombies)
+   cannot use quick-chat or vote until their 60 seconds are over.
+   A player inside the 60-second cure quarantine cannot be voted out.
 
 
 ----------------------------------------------------------------
@@ -193,19 +252,21 @@ STEP 4 - RESULT
 ----------------------------------------------------------------
 
    - CLUES: beat someone with a number card and you might get a hint
-     like "Your opponent's hands felt cold...". (1 in 5 clues about
+     like "Your opponent's hands felt cold...". (1 in 8 clues about
      humans is false, so be careful.)
-   - CURE: if your Cure saves you, the attacker is 100% a zombie.
+   - CURE: if your Cure saves you or cures someone, the attacker/
+     target is 100% a zombie.
    - SIGNS that grow over about 60 seconds after turning:
         * a very faint green tint, and a rare split-second green flicker
         * they twitch now and then
         * they leave faintly glowing green footprints
    - STARVING zombies growl and flare green for a moment.
-   - BLOOD TEST: a positive test is announced to everyone.
-   - SHOTS and MISFIRES: everyone is told. A misfire means the
-     shooter was sure... why?
+   - SHOTS: every shot is announced with the shooter's name (not the
+     target's role). A shot at a human makes the shooter look bad.
+   - A sudden "a player was quarantined" message means somebody just
+     used a Cure on a zombie... or something else is going on.
    - Zombies duel each other too (fake duels), so "they never duel
-     each other" is NOT a clue any more.
+     each other" is NOT a clue.
 
 
 ----------------------------------------------------------------
@@ -217,6 +278,7 @@ STEP 4 - RESULT
 
    To refill: go to a CARD REFILL point and stand still for
    5 seconds. You get back up to 4 cards.
+   Refill points never give a Gun or a Cure to a zombie.
 
    Card refill points: SUPPLY ROOM (ground floor),
                        STORAGE (floor 3),
@@ -235,8 +297,8 @@ STEP 4 - RESULT
   Accept a challenge      Y                     ACCEPT button
   Run from a challenge    N                     RUN button
   Look at a card          1 to 9                Tap the card
-  Meeting / Blood Test /  SPACE (at the         Round button left of
-    Cure machine            station)              the CHALLENGE button
+  Emergency button        SPACE (at the         Round button left of
+                            station)              the CHALLENGE button
   Open the big map        M                     Tap the small map
 
 
@@ -256,8 +318,11 @@ STEP 4 - RESULT
    are dim. Far rooms are dark, so you cannot see who is inside.
 
    10 DUEL TABLES (glowing blue, marked "DUEL") on every floor.
-   EMERGENCY BUTTON: Central Hall.  BLOOD TEST: Medbay.
-   CURE MACHINE: Cure Lab.  QUARANTINE CELL: basement, far right.
+   EMERGENCY BUTTON: Central Hall.
+   QUARANTINE CELL: basement, far right. It holds two kinds of
+   prisoners: voted-out players (permanent) and cure users
+   (temporary, marked with a light).
+   MEDBAY and CURE LAB are normal rooms now (no stations).
 
 
 ----------------------------------------------------------------
@@ -265,23 +330,26 @@ STEP 4 - RESULT
 ----------------------------------------------------------------
 
    As a HUMAN
-   - Keep your Gun for someone you really suspect.
-   - A Cure is gold: it saves you AND reveals the zombie.
+   - Your Gun has 2 bullets and kills anyone, human or zombie.
+     Shoot only someone you are sure about.
+   - A Cure cures a zombie and shields you, but you lose 60 seconds
+     in quarantine. Use it when it is worth it.
    - Running can save your life. Head for a ladder.
    - Watch for green flickers, twitching and glowing footprints.
-   - Get a Blood Test before you accuse anyone: a badge makes people
-     believe you.
-   - Bitten? 45 seconds is enough to reach the Cure Lab. Go!
+   - A bite turns you at once, so avoid duels with anyone you
+     suspect unless you hold a Cure or a Gun.
 
    As a ZOMBIE
    - Act normal. Do not chase everyone at once.
    - Save your Zombie cards for humans you can catch.
    - If you have no Zombie card, play numbers: you can't infect,
-     but you also can't be shot.
-   - Watch out: a human who plays a Gun might have guessed right.
+     but a Gun can still kill you.
+   - Gun holders are dangerous: a shot at you is announced.
+   - If you bite a Gun holder, their Gun is taken away and secretly
+     given to another human, so a new Gun holder may appear anywhere.
    - Do not go hungry: starving zombies growl and flare green.
    - Duel your fellow zombies in front of humans. It looks normal.
-   - In meetings, accuse humans who have no badge.
+   - If someone is quarantined for 60 seconds, use the time to spread.
 
 
 ----------------------------------------------------------------
@@ -292,7 +360,7 @@ STEP 4 - RESULT
      meetings.
    - Safe Handshake, extra roles (Medic, Detective, Traitor) and an
      end-of-match recap.
-   - Events: Lights Out, Lockdown, Reactor Meltdown, Cure Lab, Broadcast.
+   - Events: Lights Out, Lockdown, Reactor Meltdown, Broadcast.
    - Zombies using vents.
 
 ================================================================

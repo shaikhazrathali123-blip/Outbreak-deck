@@ -12,7 +12,8 @@ const REASONS = {
   'target-exhausted': 'NO CARDS',
   stunned: 'STUNNED',
   'target-stunned': 'STUNNED',
-  ally: 'ALLY',
+  'in-cell': 'QUARANTINED',
+  'target-in-cell': 'QUARANTINED',
   busy: 'BUSY',
   dead: 'DEAD',
 };
@@ -133,7 +134,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.updateRoleChip();
   }
 
-  /** Role chip: HUMAN (+ Clean badge time), BITTEN (turns in…), INFECTED (+ hunger). */
+  /** Role chip: HUMAN (+ quarantine / gag / recovering), ZOMBIE (+ hunger). */
   updateRoleChip() {
     const session = this.gameScene.session;
     const me = session.match.get(session.youId);
@@ -141,10 +142,10 @@ export default class SideUIScene extends Phaser.Scene {
     let text = 'HUMAN';
     let color = '#e9e4d6';
     if (!me.alive) [text, color] = [me.quarantined ? 'QUARANTINED' : 'OUT', '#8a909c'];
-    else if (me.role === 'infected' && session.match.isStarving(me.id, now)) [text, color] = ['INFECTED  ·  STARVING', '#b4ff3a'];
-    else if (me.role === 'infected') [text, color] = [`INFECTED  ·  HUNGER ${clockText(me.hungerAt - now)}`, '#3ee67a'];
-    else if (me.turnsAt !== null) [text, color] = [`BITTEN  ·  TURNING IN ${clockText(me.turnsAt - now)}`, '#c6f03a'];
-    else if (session.match.hasBadge(me.id, now)) [text, color] = [`HUMAN  ·  ✚ CLEAN ${clockText(me.cleanUntil - now)}`, '#3ee6d0'];
+    else if (me.role === 'infected' && session.match.isStarving(me.id, now)) [text, color] = ['ZOMBIE  ·  STARVING', '#b4ff3a'];
+    else if (me.role === 'infected') [text, color] = [`ZOMBIE  ·  HUNGER ${clockText(me.hungerAt - now)}`, '#3ee67a'];
+    else if (session.match.inCell(me.id, now)) [text, color] = [`HUMAN  ·  IN QUARANTINE ${clockText(me.cellUntil - now)}`, '#ff9a5a'];
+    else if (session.match.isGagged(me.id, now)) [text, color] = [`HUMAN  ·  GAGGED ${clockText(me.gagUntil - now)}${session.match.isRecovering(me.id, now) ? '  ·  RECOVERING' : ''}`, '#9ab8d8'];
     if (text === this.role.text && color === this.roleColor) return;
     this.roleColor = color;
     this.role.setText(text).setColor(color);
@@ -174,8 +175,8 @@ export default class SideUIScene extends Phaser.Scene {
     const color = infected ? '#3ee67a' : '#2fd2e0';
     const allies = session.match.list().filter((p) => p.role === 'infected' && p.id !== session.youId).map((p) => p.name);
     const lines = infected
-      ? ['Play your ZOMBIE card in a duel to bite a human. Bite before your HUNGER runs out.', 'Beware of Guns and the Blood Test.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
-      : ['Stay human until the timer ends, or shoot every zombie with a GUN.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Blood Test in the Medbay, Emergency Button in the Central Hall.`; })()];
+      ? ['Play your ZOMBIE card in a duel to bite a human: they turn at once. Bite before your HUNGER runs out.', 'Beware of Guns and Cures.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
+      : ['Stay human until the timer ends. Shoot (GUN), cure (CURE) or vote out every zombie.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Emergency Button in the Central Hall.`; })()];
     const items = [];
     const bg = this.add.rectangle(0, 0, W, H, 0x020308, 0.78).setOrigin(0).setInteractive();
     items.push(bg);
@@ -238,7 +239,7 @@ export default class SideUIScene extends Phaser.Scene {
   showOver(r) {
     this.setPlaying(false);
     const { width: W, height: H } = this.scale;
-    const text = r.winner === 'infected' ? 'OUTBREAK' : 'TIME UP';
+    const text = r.winner === 'infected' ? 'OUTBREAK' : r.reason === 'time' ? 'TIME UP' : 'CONTAINED';
     const color = r.winner === 'infected' ? '#3ee67a' : '#2fd2e0';
     this.add.rectangle(0, 0, W, H, 0x020308, 0.6).setOrigin(0).setDepth(300);
     this.add.text(W / 2, H / 2, text, { fontFamily: FONT, fontSize: '64px', fontStyle: '700', color }).setOrigin(0.5).setLetterSpacing(14).setShadow(0, 0, color, 28, false, true).setDepth(301);
@@ -365,8 +366,8 @@ export default class SideUIScene extends Phaser.Scene {
     const ladder = gs.nearbyLadder();
     const me = gs.match.get(gs.youId);
     const now = gs.now();
-    if (now < me.stunnedUntil) this.showPrompt(`STUNNED  ${Math.ceil((me.stunnedUntil - now) / 1000)}`);
-    else if (session.stationHint) this.showPrompt(session.stationHint);
+    if (gs.match.inCell(me.id, now)) this.showPrompt(`IN QUARANTINE  ${Math.ceil((me.cellUntil - now) / 1000)}  ·  GAGGED`);
+    else if (now < me.stunnedUntil) this.showPrompt(`STUNNED  ${Math.ceil((me.stunnedUntil - now) / 1000)}`);
     else if (gs.refillHint) this.showPrompt(gs.refillHint);
     else if (ladder && !gs.busy) {
       const up = ladder.lower === gs.state.floor;

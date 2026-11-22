@@ -50,16 +50,16 @@ export const PLAYER_COLORS = [
 
 
 // ------------------------------------------------------------ cards & duels
-// Only four kinds of card (see README "Cards"):
+// Only four kinds of card (see GAME_GUIDE.txt section 3):
 //   number 1–9  duel power, highest wins
-//   zombie      infected only: beats any number card and infects the loser
-//   gun         kills a zombie card; against a number card it misfires (you lose)
-//   cure        automatic: blocks one infection
+//   zombie      infected only: beats any number card and bites (the loser turns at once)
+//   gun         humans only, 2 bullets: kills whoever it is played on, human or zombie
+//   cure        humans only: played on a zombie it cures them; held, it blocks one bite
 export const CARD_INFO = {
   number: { name: 'Number', color: '#2fd2e0', text: 'Duel card. The higher number wins.' },
-  zombie: { name: 'Zombie', color: '#3ee67a', text: 'Beats any number card and bites the loser: they turn 45s later. Loses to a Gun.' },
-  gun: { name: 'Gun', color: '#ff7a3a', text: 'Kills a Zombie card. Against a number it misfires: everyone hears it and you are stunned.' },
-  cure: { name: 'Cure', color: '#3e8bff', text: 'Automatic: if you would be infected, the Cure is used instead.' },
+  zombie: { name: 'Zombie', color: '#3ee67a', text: 'Beats any number card and bites the loser: they turn into a zombie at once. Loses to a Gun.' },
+  gun: { name: 'Gun', color: '#ff7a3a', text: '2 bullets. Kills whoever you play it on, human or zombie. Every shot is announced and you are stunned 8s.' },
+  cure: { name: 'Cure', color: '#3e8bff', text: 'Play it on a zombie to cure them (you spend 60s in quarantine). Wasted on a human. Held, it blocks one bite.' },
 };
 
 export const RULES = {
@@ -67,6 +67,9 @@ export const RULES = {
   refillTo: 4,
   deckGuns: 3, // per 36 number cards
   deckCures: 3,
+  maxGuns: 1, // Guns one player may hold
+  gunBullets: 2,
+  shotStun: 8000, // ms the shooter is stunned after any shot
   zombieStart: 2, // Zombie cards an infected player starts with
   zombieMax: 2,
   zombieRegen: 40000, // ms for an infected player to grow a new Zombie card
@@ -74,10 +77,10 @@ export const RULES = {
   answerTime: 5000, // ms to accept or run
   pickTime: 5000, // ms to pick a card in a duel
   duelCooldown: 10000,
-  stunTime: 12000,
+  stunTime: 12000, // a zombie beaten by a human's number card
   refillTime: 5000,
   refillRange: 60,
-  falseClueChance: 0.2,
+  falseClueChance: 0.125, // 1 in 8
   signsTime: 60000, // infection signs grow over this long
   chaseTime: 8000, // ms the challenger has to catch someone who ran
   chaseHeadStart: 900, // ms before the chaser may move
@@ -86,15 +89,14 @@ export const RULES = {
   runnerSpeed: 1.1,
   matchMinutes: 6,
 
-  // --- the "mind game" rules (README "Meetings", "Blood Test", "Incubation", "Hunger")
-  incubation: 45000, // ms a bitten human has before they turn (Cure Lab or a Cure card saves them)
-  cleanBadge: 60000, // ms a Clean badge from the Blood Test lasts
-  bloodTestTime: 4000, // ms standing still at the Blood Test
-  cureStationTime: 6000, // ms standing still at the Cure Lab machine
-  cureStationRecharge: 60000, // ms the Cure Lab machine needs after it cures someone
-  hunger: 90000, // ms an infected player can go without biting before they start STARVING (visible to all)
+  // --- cures (GAME_GUIDE.txt section 3)
+  cureQuarantine: 60000, // ms the Cure user spends in the quarantine cell (gagged too)
+  gagTime: 60000, // ms a freshly cured zombie can't quick-chat or vote
+  recoverTime: 20000, // ms a freshly cured zombie can't be bitten
+
+  // --- hunger and meetings (sections 7 and 9)
+  hunger: 90000, // ms an infected player can go without biting before they start STARVING
   growlEvery: 20000, // ms between the public growls of a starving zombie
-  stationRange: 60, // px from a station to use it
   meetingRange: 70, // px from the Emergency Button to call a meeting
   meetingsPerPlayer: 1,
   meetingFirstDelay: 30000, // no meeting in the first 30s

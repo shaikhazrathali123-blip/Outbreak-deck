@@ -97,8 +97,10 @@ export default class MeetingScene extends Phaser.Scene {
       const p = t.p;
       const out = !p.alive;
       const ally = you.role === 'infected' && p.role === 'infected' && p.id !== s.youId;
-      // the match clock is paused during the meeting, so badges are frozen too
-      const badge = p.cleanUntil > m.startedAt ? Math.ceil((p.cleanUntil - m.startedAt) / 1000) : 0;
+      // the match clock is paused during the meeting, so the cell and gag timers are frozen too
+      const t0 = m.startedAt;
+      const cell = p.cellUntil > t0 ? Math.ceil((p.cellUntil - t0) / 1000) : 0;
+      const gag = p.gagUntil > t0 ? Math.ceil((p.gagUntil - t0) / 1000) : 0;
       let info = '';
       let infoColor = '#3ee6d0';
       if (out) [info, infoColor] = [p.quarantined ? '⛔ QUARANTINED' : '☠ SHOT', '#8a909c'];
@@ -106,8 +108,8 @@ export default class MeetingScene extends Phaser.Scene {
         const votes = m.result.counts[p.id] ?? 0;
         [info, infoColor] = [votes ? `${votes} VOTE${votes > 1 ? 'S' : ''}` : '', p.id === m.result.out ? '#ff4a5a' : '#ffd27a'];
       } else if (m.phase === 'vote' && m.votes.has(p.id)) [info, infoColor] = ['✔ VOTED', '#ffd27a'];
-      else if (badge) info = `✚ CLEAN ${badge}s`;
-      if (p.id === s.youId && s.match.isBitten(p.id) && !out && m.phase !== 'result') [info, infoColor] = ['BITTEN', '#c6f03a'];
+      else if (cell) [info, infoColor] = [`● IN QUARANTINE ${cell}s`, '#ff9a5a'];
+      else if (gag) [info, infoColor] = [`GAGGED ${gag}s`, '#8f96a3'];
       const selected = this.selected === p.id;
       const key = `${info}|${infoColor}|${selected}|${out}|${ally}|${m.result?.out === p.id}`;
       if (key === t.drawn) continue;
@@ -178,7 +180,6 @@ export default class MeetingScene extends Phaser.Scene {
       make('ACCUSE', 0xff7a7a, () => s.youSay('accuse', target())),
       make('VOUCH', 0x9ffff4, () => s.youSay('vouch', target())),
       make("I'M CLEAN", 0x3ee6d0, () => s.youSay('clean')),
-      make('I WAS BITTEN', 0xc6f03a, () => s.youSay('bitten', target())),
       make('SKIP', 0xc9ced8, () => s.youSay('skip')),
     ];
     this.voteButtons = [
@@ -217,29 +218,31 @@ export default class MeetingScene extends Phaser.Scene {
     const s = this.session;
     const m = s.meeting;
     const youIn = s.match.get(s.youId).alive;
-    const talk = m.phase === 'talk' && youIn;
-    const vote = m.phase === 'vote' && youIn && !m.votes.has(s.youId);
+    const gagged = youIn && !s.match.canVote(s.youId, m.startedAt);
+    const talk = m.phase === 'talk' && youIn && !gagged;
+    const vote = m.phase === 'vote' && youIn && !gagged && !m.votes.has(s.youId);
     for (const b of this.talkButtons) b.c.setVisible(talk);
     for (const b of this.voteButtons) b.c.setVisible(vote);
     const cooling = now - m.yourLastSay < 1500 || m.yourSays >= 8;
     if (talk) {
-      const [accuse, vouch, clean, bitten, skip] = this.talkButtons;
+      const [accuse, vouch, clean, skip] = this.talkButtons;
       const sel = this.selected ? s.name(this.selected) : null;
       this.setEnabled(accuse, !!sel && !cooling, sel ? `ACCUSE ${sel}` : 'ACCUSE');
       this.setEnabled(vouch, !!sel && !cooling, sel ? `VOUCH ${sel}` : 'VOUCH');
       this.setEnabled(clean, !cooling);
-      this.setEnabled(bitten, !cooling);
       this.setEnabled(skip, !cooling);
       this.layoutRow(this.talkButtons);
     }
     if (vote) {
+      const ok = this.selected && s.match.canBeVoted(this.selected, m.startedAt);
       const sel = this.selected ? s.name(this.selected) : null;
-      this.setEnabled(this.voteButtons[0], !!sel, sel ? `VOTE ${sel}` : 'TAP A PLAYER');
+      this.setEnabled(this.voteButtons[0], !!ok, ok ? `VOTE ${sel}` : sel ? `${sel} CAN'T BE VOTED` : 'TAP A PLAYER');
       this.setEnabled(this.voteButtons[1], true);
       this.layoutRow(this.voteButtons);
     }
     let note = '';
     if (!youIn) note = 'YOU ARE OUT  ·  WATCHING';
+    else if (gagged && m.phase !== 'result') note = s.match.inCell(s.youId, m.startedAt) ? 'IN QUARANTINE  ·  GAGGED: NO CHAT, NO VOTE' : 'GAGGED: NO CHAT, NO VOTE';
     else if (m.phase === 'talk' && !this.selected) note = '';
     else if (m.phase === 'vote' && m.votes.has(s.youId)) note = m.votes.get(s.youId) === 'skip' ? 'YOU SKIPPED  ·  WAITING FOR THE OTHERS' : `YOU VOTED ${s.name(m.votes.get(s.youId))}  ·  WAITING`;
     else if (m.phase === 'result') note = m.result.skips ? `SKIPPED: ${m.result.skips}` : '';

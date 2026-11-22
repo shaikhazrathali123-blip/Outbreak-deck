@@ -89,7 +89,8 @@ export default class HandUI {
     if (this.selected < 0) return this.hideTip();
     const card = this.hand[i];
     const img = this.cards[i];
-    this.tipTitle.setText(card.kind === 'number' ? `NUMBER ${card.value}` : cardName(card).toUpperCase());
+    const bullets = card.kind === 'gun' ? `  ·  ${card.bullets} BULLET${card.bullets === 1 ? '' : 'S'}` : '';
+    this.tipTitle.setText(card.kind === 'number' ? `NUMBER ${card.value}` : cardName(card).toUpperCase() + bullets);
     this.tipText.setText(CARD_INFO[card.kind].text);
     const y = img.y - this.cardH * 0.62 - this.tipText.height - 34;
     this.tipTitle.setPosition(this.width / 2, y + 8);

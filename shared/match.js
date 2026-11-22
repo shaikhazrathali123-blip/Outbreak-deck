@@ -1,9 +1,10 @@
-// Match state and rules: roles, hands, Zombie cards, duel results, bites and
-// incubation, Cures, kills, hunger, Blood Tests and Clean badges, meetings and
-// quarantine, cooldowns, refills and win conditions. Pure logic with no
-// rendering, so the server can run it in Phase 4. Times are passed in (ms).
+// Match state and rules (GAME_GUIDE.txt is the rulebook): roles, hands, Zombie
+// cards, instant bites, Guns with bullets, Cures and the 60s cure quarantine,
+// secret Gun hand-offs, hunger, meetings and votes, cooldowns, refills and win
+// conditions. Pure logic with no rendering, so the server can run it in
+// Phase 4. Times are passed in (ms).
 import { RULES, infectedCount } from './constants.js';
-import { createRng, createDeck, decksFor, shuffle, isPlayable, zombieCard } from './cards.js';
+import { createRng, createDeck, decksFor, shuffle, isHumanOnly, zombieCard } from './cards.js';
 import { resolveDuel } from './duel.js';
 
 const CLUES = [
@@ -49,29 +50,30 @@ export class Match {
     this.deck = createDeck(this.rng, decksFor(players.length));
     this.discard = [];
     this.players = new Map();
-    this.cureStationReadyAt = 0;
     this.meetingReadyAt = now + RULES.meetingFirstDelay;
     for (const p of players) {
       const player = {
         ...p,
         alive: true,
-        quarantined: false,
-        hand: this.draw(handSize),
+        quarantined: false, // voted out (permanent)
+        shot: false,
+        hand: [],
         cooldownUntil: 0,
         stunnedUntil: 0,
         infectedAt: p.role === 'infected' ? now : null, // when they turned (infection signs grow from here)
-        turnsAt: null, // set while bitten: when the incubation ends
-        bittenBy: null,
         hungerAt: p.role === 'infected' ? now + RULES.hunger : null, // starving from this time on
         starving: false,
         nextGrowlAt: 0,
-        cleanUntil: 0, // Clean badge from the Blood Test
+        cellUntil: 0, // Cure user: in the quarantine cell until then (temporary)
+        gagUntil: 0, // no quick-chat or voting until then
+        recoverUntil: 0, // freshly cured: can't be bitten until then
         meetingsLeft: RULES.meetingsPerPlayer,
         nextZombieAt: 0,
         startedInfected: p.role === 'infected',
-        stats: { duels: 0, won: 0, lost: 0, infections: 0, kills: 0, tests: 0, misfires: 0 },
+        stats: { duels: 0, won: 0, lost: 0, infections: 0, kills: 0, cures: 0, timesCured: 0 },
       };
       this.players.set(p.id, player);
+      this.deal(player, handSize);
       if (player.role === 'infected') this.growZombies(player, RULES.zombieStart, now);
     }
   }
@@ -86,17 +88,21 @@ export class Match {
     return [...this.players.values()];
   }
 
-  /** Living players on a team (bitten players are still 'human' until they turn). */
+  /** Players still in the match on a team (a human in the cure quarantine still counts). */
   living(role) {
     return this.list().filter((p) => p.alive && p.role === role);
   }
 
-  isBitten(id) {
-    return this.get(id).turnsAt !== null;
+  inCell(id, now) {
+    return now < this.get(id).cellUntil;
   }
 
-  hasBadge(id, now) {
-    return now < this.get(id).cleanUntil;
+  isGagged(id, now) {
+    return now < this.get(id).gagUntil;
+  }
+
+  isRecovering(id, now) {
+    return now < this.get(id).recoverUntil;
   }
 
   isStarving(id, now) {
@@ -104,21 +110,19 @@ export class Match {
     return p.alive && p.role === 'infected' && p.hungerAt !== null && now >= p.hungerAt;
   }
 
-  /**
-   * 'infected' once no living human is left (bitten humans still count until they turn),
-   * 'humans' once every infected is gone and nobody is left bitten, otherwise null.
-   */
+  /** 'infected' once no human is left, 'humans' once every zombie is shot, voted out or cured, otherwise null. */
   winner() {
     if (this.living('human').length === 0) return 'infected';
-    if (this.living('infected').length === 0 && !this.living('human').some((p) => p.turnsAt !== null)) return 'humans';
+    if (this.living('infected').length === 0) return 'humans';
     return null;
   }
 
-  /** At 0:00 humans win only if someone is still human and NOT bitten. */
+  /** At 0:00 humans win if at least one human is left. */
   timeUpWinner() {
-    return this.living('human').some((p) => p.turnsAt === null) ? 'humans' : 'infected';
+    return this.living('human').length ? 'humans' : 'infected';
   }
 
+  // ------------------------------------------------------------ cards
   draw(n) {
     const out = [];
     while (out.length < n) {
@@ -132,6 +136,33 @@ export class Match {
     return out;
   }
 
+  /** May `p` hold this card? Zombies never hold Guns or Cures; nobody holds more than one Gun. */
+  allowed(p, card) {
+    if (isHumanOnly(card) && p.role === 'infected') return false;
+    if (card.kind === 'gun' && p.hand.filter((c) => c.kind === 'gun').length >= RULES.maxGuns) return false;
+    return true;
+  }
+
+  /** Give `p` up to `n` cards they may hold; anything else goes to the discard pile. */
+  deal(p, n) {
+    const got = [];
+    let guard = 0;
+    while (got.length < n && guard++ < 200) {
+      const [card] = this.draw(1);
+      if (!card) break;
+      if (this.allowed(p, card)) {
+        p.hand.push(card);
+        got.push(card);
+      } else this.trash(card);
+    }
+    return got;
+  }
+
+  /** Throw cards away. Zombie cards just vanish: they never go into the deck. */
+  trash(...cards) {
+    this.discard.push(...cards.filter((c) => c.kind !== 'zombie'));
+  }
+
   zombieCount(p) {
     return p.hand.filter((c) => c.kind === 'zombie').length;
   }
@@ -143,25 +174,16 @@ export class Match {
   }
 
   /**
-   * Time passes: Zombie cards regrow, bitten players turn (or are saved by a Cure
-   * card they picked up), zombies start starving and growl.
-   * @returns {{type:'zombie-grew'|'turned'|'cured'|'starving'|'growl', player:string}[]}
+   * Time passes: Zombie cards regrow, zombies start starving and growl, Cure users leave the cell.
+   * @returns {{type:'zombie-grew'|'starving'|'growl'|'released', player:string}[]}
    */
   tick(now) {
     const events = [];
     for (const p of this.list()) {
       if (!p.alive) continue;
-      if (p.turnsAt !== null) {
-        const cure = p.hand.findIndex((c) => c.kind === 'cure');
-        if (cure >= 0) {
-          this.discard.push(...p.hand.splice(cure, 1));
-          this.cureBite(p);
-          events.push({ type: 'cured', player: p.id, via: 'card' });
-        } else if (now >= p.turnsAt) {
-          this.turn(p, now);
-          events.push({ type: 'turned', player: p.id });
-        }
-        continue;
+      if (p.cellUntil && now >= p.cellUntil) {
+        p.cellUntil = 0;
+        events.push({ type: 'released', player: p.id });
       }
       if (p.role !== 'infected') continue;
       if (now >= p.nextZombieAt) {
@@ -182,9 +204,9 @@ export class Match {
     return events;
   }
 
-  /** Exhausted = no card you could play in a duel. */
+  /** Exhausted = no card at all to play in a duel. */
   isExhausted(id) {
-    return !this.get(id).hand.some(isPlayable);
+    return this.get(id).hand.length === 0;
   }
 
   /** Can `aId` challenge `bId` right now? (Distance is checked by the caller.) */
@@ -193,6 +215,8 @@ export class Match {
     const b = this.get(bId);
     if (aId === bId) return { ok: false, reason: 'self' };
     if (!a.alive || !b.alive) return { ok: false, reason: 'dead' };
+    if (this.inCell(aId, now)) return { ok: false, reason: 'in-cell' };
+    if (this.inCell(bId, now)) return { ok: false, reason: 'target-in-cell' };
     if (this.isExhausted(aId)) return { ok: false, reason: 'exhausted' };
     if (this.isExhausted(bId)) return { ok: false, reason: 'target-exhausted' };
     if (now < a.stunnedUntil) return { ok: false, reason: 'stunned' };
@@ -205,10 +229,7 @@ export class Match {
   takeCard(p, cardId) {
     const i = p.hand.findIndex((c) => c.id === cardId);
     if (i < 0) throw new Error(`${p.id} doesn't hold ${cardId}`);
-    const card = p.hand[i];
-    if (!isPlayable(card)) throw new Error(`${card.id} can't be played in a duel`);
-    p.hand.splice(i, 1);
-    return card;
+    return p.hand.splice(i, 1)[0];
   }
 
   /** Highest number card (or null). */
@@ -221,45 +242,80 @@ export class Match {
   }
 
   randomCard(id) {
-    const playable = this.get(id).hand.filter(isPlayable);
-    return playable[Math.floor(this.rng() * playable.length)] ?? null;
+    const hand = this.get(id).hand;
+    return hand[Math.floor(this.rng() * hand.length)] ?? null;
   }
 
-  /** A Zombie card hit a human: the incubation starts. The biter is fed. */
+  // ------------------------------------------------------------ what can happen to a player
+  /**
+   * A Zombie card hit a human: they turn AT ONCE. Their Guns (and any Cures) are
+   * discarded and secretly handed to random other humans (or back to the supply).
+   * @returns {{card, to: string|null}[]} where each card went (secret: for the UI of the receiver only)
+   */
   bite(p, by, now) {
-    p.turnsAt = now + RULES.incubation;
-    p.bittenBy = by.id;
     by.stats.infections++;
     by.hungerAt = now + RULES.hunger;
     by.starving = false;
-  }
-
-  cureBite(p) {
-    p.turnsAt = null;
-    p.bittenBy = null;
-  }
-
-  /** The incubation is over: they join the infected. */
-  turn(p, now) {
+    const lost = p.hand.filter(isHumanOnly);
+    p.hand = p.hand.filter((c) => !isHumanOnly(c));
     p.role = 'infected';
     p.infectedAt = now;
-    p.turnsAt = null;
     p.hungerAt = now + RULES.hunger;
+    p.starving = false;
+    p.recoverUntil = 0;
     this.growZombies(p, 1, now);
+    return lost.map((card) => {
+      const takers = this.list().filter((q) => q.alive && q.role === 'human' && q.id !== p.id && this.allowed(q, card));
+      const to = takers.length ? takers[Math.floor(this.rng() * takers.length)] : null;
+      if (to) to.hand.push(card);
+      else this.deck.splice(Math.floor(this.rng() * (this.deck.length + 1)), 0, card); // back to the refill supply
+      return { card, to: to?.id ?? null };
+    });
+  }
+
+  /** A Cure hit a zombie: they become human, lose their Zombie cards, are gagged and recovering. */
+  cureZombie(p, by, now) {
+    p.role = 'human';
+    p.hand = p.hand.filter((c) => c.kind !== 'zombie');
+    p.infectedAt = null;
+    p.hungerAt = null;
+    p.starving = false;
+    p.gagUntil = now + RULES.gagTime;
+    p.recoverUntil = now + RULES.recoverTime;
+    p.stats.timesCured++;
+    by.stats.cures++;
+  }
+
+  /** The Cure user goes to the quarantine cell for 60s: can't move, duel, chat, vote or be voted out. */
+  sendToCell(p, now) {
+    p.cellUntil = now + RULES.cureQuarantine;
+    p.gagUntil = Math.max(p.gagUntil, p.cellUntil);
+    p.cooldownUntil = Math.max(p.cooldownUntil, p.cellUntil);
   }
 
   kill(p, by) {
     p.alive = false;
+    p.shot = true;
     by.stats.kills++;
-    this.discard.push(...p.hand.splice(0));
+    this.trash(...p.hand.splice(0));
+  }
+
+  /** A played Gun loses a bullet; it goes back to the hand while bullets are left. */
+  spendBullet(p, card) {
+    card.bullets = (card.bullets ?? RULES.gunBullets) - 1;
+    if (card.bullets > 0) p.hand.push(card);
+    else this.trash({ ...card, bullets: RULES.gunBullets }); // reloaded if it is ever drawn again
   }
 
   /**
    * Play out a duel. Returns everything that happened, for the UI.
-   * Numbers: the winner takes the loser's card. Zombie beats a number and bites
-   * (a Cure blocks it). Gun kills a Zombie; against a number it misfires and the
-   * shooter is stunned. Two infected = a fake duel: both keep their cards.
-   * A human who beats an infected with a number gets a clue; the infected is stunned.
+   *   numbers   winner takes the loser's card; a human beating a zombie gets a clue, the zombie is stunned
+   *   zombie    bites a human (they turn at once) unless they hold a Cure: then the zombie is cured
+   *             and the Cure holder goes to the cell
+   *   gun       kills whoever it is played on; the shooter is stunned 8s; uses a bullet
+   *   cure      on a Zombie card: no bite, zombie cured, Cure user to the cell
+   *             on a number: a zombie is cured (but wins the duel), a human just wins (Cure wasted)
+   *   two zombies = a fake duel: both keep their cards
    */
   settleDuel(aId, bId, cardIdA, cardIdB, now) {
     const check = this.canChallenge(aId, bId, now);
@@ -269,23 +325,25 @@ export class Match {
     const cardA = this.takeCard(a, cardIdA);
     const cardB = this.takeCard(b, cardIdB);
     let result = resolveDuel(cardA, cardB);
-    const out = { result, cards: { [aId]: cardA, [bId]: cardB }, winnerId: null, loserId: null, effects: [] };
+    const out = { result, cards: { [aId]: { ...cardA }, [bId]: { ...cardB } }, winnerId: null, loserId: null, effects: [] };
     a.cooldownUntil = now + RULES.duelCooldown;
     b.cooldownUntil = now + RULES.duelCooldown;
     a.stats.duels++;
     b.stats.duels++;
+    // a played card goes back to its owner (Guns lose a bullet)
+    const giveBack = (p, card) => (card.kind === 'gun' ? this.spendBullet(p, card) : p.hand.push(card));
 
     if (a.role === 'infected' && b.role === 'infected') {
       // allies put on a show: from outside it looks like any duel
       out.result = result = { ...result, winner: null, kind: 'fake' };
-      a.hand.push(cardA);
-      b.hand.push(cardB);
+      giveBack(a, cardA);
+      giveBack(b, cardB);
       out.effects.push({ type: 'fake' });
       return out;
     }
     if (!result.winner) {
-      a.hand.push(cardA);
-      b.hand.push(cardB);
+      giveBack(a, cardA);
+      giveBack(b, cardB);
       out.effects.push({ type: 'draw' });
       return out;
     }
@@ -296,34 +354,54 @@ export class Match {
     loser.stats.lost++;
 
     switch (result.kind) {
-      case 'kill':
-        this.discard.push(wCard, lCard);
+      case 'kill': {
+        this.spendBullet(winner, wCard);
+        this.trash(lCard);
         this.kill(loser, winner);
-        out.effects.push({ type: 'killed', player: loser.id, by: winner.id });
-        break;
-      case 'infect': {
-        this.discard.push(wCard);
-        loser.hand.push(lCard); // the number card goes back; the Zombie is what hurts
-        const cure = loser.hand.findIndex((c) => c.kind === 'cure');
-        if (loser.turnsAt !== null) {
-          out.effects.push({ type: 'already-bitten', player: loser.id, by: winner.id });
-        } else if (cure >= 0) {
-          this.discard.push(...loser.hand.splice(cure, 1));
-          out.effects.push({ type: 'cured', player: loser.id, by: winner.id });
-        } else {
-          this.bite(loser, winner, now);
-          out.effects.push({ type: 'bitten', player: loser.id, by: winner.id, turnsAt: loser.turnsAt });
-        }
+        winner.stunnedUntil = now + RULES.shotStun;
+        out.effects.push({ type: 'killed', player: loser.id, by: winner.id, until: winner.stunnedUntil });
         break;
       }
-      case 'misfire':
-        // public: everyone hears the shot, and the shooter is stunned
-        this.discard.push(lCard);
-        winner.hand.push(wCard);
-        loser.stunnedUntil = now + RULES.stunTime;
-        loser.stats.misfires++;
-        out.effects.push({ type: 'misfire', player: loser.id, target: winner.id, until: loser.stunnedUntil });
+      case 'infect': {
+        // the number card goes back; the Zombie card is what hurts
+        loser.hand.push(lCard);
+        const cure = loser.hand.findIndex((c) => c.kind === 'cure');
+        if (this.isRecovering(loser.id, now)) {
+          out.effects.push({ type: 'immune', player: loser.id, by: winner.id });
+        } else if (cure >= 0) {
+          this.trash(...loser.hand.splice(cure, 1));
+          this.cureZombie(winner, loser, now);
+          this.sendToCell(loser, now);
+          out.effects.push({ type: 'cured', player: winner.id, by: loser.id, via: 'held' });
+          out.effects.push({ type: 'cell', player: loser.id, until: loser.cellUntil });
+        } else {
+          const moved = this.bite(loser, winner, now);
+          out.effects.push({ type: 'bitten', player: loser.id, by: winner.id });
+          for (const m of moved) out.effects.push({ type: 'handed', card: m.card, from: loser.id, to: m.to });
+        }
+        break; // the Zombie card is used up
+      }
+      case 'cure': {
+        // Cure vs Zombie card: no bite, the zombie is cured, the Cure user goes to the cell
+        this.trash(wCard);
+        this.cureZombie(loser, winner, now);
+        this.sendToCell(winner, now);
+        out.effects.push({ type: 'cured', player: loser.id, by: winner.id, via: 'played' });
+        out.effects.push({ type: 'cell', player: winner.id, until: winner.cellUntil });
         break;
+      }
+      case 'cure-number': {
+        // the number wins the duel; the Cure only works on a zombie (either way it is used up)
+        winner.hand.push(wCard);
+        this.trash(lCard);
+        if (winner.role === 'infected') {
+          this.cureZombie(winner, loser, now);
+          this.sendToCell(loser, now);
+          out.effects.push({ type: 'cured', player: winner.id, by: loser.id, via: 'played' });
+          out.effects.push({ type: 'cell', player: loser.id, until: loser.cellUntil });
+        } else out.effects.push({ type: 'cure-wasted', player: loser.id });
+        break;
+      }
       default: // number vs number
         winner.hand.push(wCard, lCard);
         out.effects.push({ type: 'card-taken', from: loser.id, to: winner.id, card: lCard });
@@ -342,50 +420,18 @@ export class Match {
     return CLUES[Math.floor(this.rng() * CLUES.length)];
   }
 
-  /** Exhausted players refill to 4 cards at a supply box (always with a playable card). */
+  /** Exhausted players refill to 4 cards at a supply box. Zombies never get a Gun or a Cure. */
   refill(id) {
     const p = this.get(id);
     if (!this.isExhausted(id)) return [];
-    const drawn = this.draw(Math.max(0, RULES.refillTo - p.hand.length));
-    p.hand.push(...drawn);
-    let guard = 0;
-    while (this.isExhausted(id) && guard++ < 20) {
-      const [extra] = this.draw(1);
-      if (!extra) break;
-      if (isPlayable(extra)) {
-        p.hand.push(extra);
-        drawn.push(extra);
-      } else this.discard.push(extra);
-    }
-    return drawn;
-  }
-
-  /**
-   * Blood Test (Medbay). Positive for infected AND bitten players; the result is public.
-   * Negative gives a Clean badge for 60s. The badge says nothing about what happens after.
-   */
-  bloodTest(id, now) {
-    const p = this.get(id);
-    p.stats.tests++;
-    const positive = p.role === 'infected' || p.turnsAt !== null;
-    p.cleanUntil = positive ? 0 : now + RULES.cleanBadge;
-    return { positive, cleanUntil: p.cleanUntil };
-  }
-
-  /** Cure Lab machine: saves a bitten player, then needs to recharge. */
-  useCureStation(id, now) {
-    const p = this.get(id);
-    if (now < this.cureStationReadyAt) return { cured: false, reason: 'recharging', wait: this.cureStationReadyAt - now };
-    if (p.turnsAt === null) return { cured: false, reason: p.role === 'infected' ? 'too-late' : 'not-bitten' };
-    this.cureBite(p);
-    this.cureStationReadyAt = now + RULES.cureStationRecharge;
-    return { cured: true };
+    return this.deal(p, Math.max(1, RULES.refillTo - p.hand.length));
   }
 
   // ------------------------------------------------------------ meetings
   canCallMeeting(id, now) {
     const p = this.get(id);
     if (!p.alive) return { ok: false, reason: 'dead' };
+    if (this.inCell(id, now)) return { ok: false, reason: 'in-cell' };
     if (p.meetingsLeft <= 0) return { ok: false, reason: 'used' };
     if (now < this.meetingReadyAt) return { ok: false, reason: 'cooldown', wait: this.meetingReadyAt - now };
     return { ok: true };
@@ -397,6 +443,17 @@ export class Match {
     this.get(id).meetingsLeft--;
   }
 
+  /** Who may vote / speak in a meeting: in the match and not gagged. */
+  canVote(id, now) {
+    const p = this.get(id);
+    return p.alive && !this.isGagged(id, now);
+  }
+
+  /** Who may be voted out: in the match and not inside the 60s cure quarantine. */
+  canBeVoted(id, now) {
+    return this.get(id).alive && !this.inCell(id, now);
+  }
+
   /** Meetings pause the match: push every running timer back by `ms` (those still pending after `from`). */
   shiftTimers(from, ms) {
     const later = (t) => (t !== null && t > from ? t + ms : t);
@@ -404,20 +461,20 @@ export class Match {
       p.cooldownUntil = later(p.cooldownUntil);
       p.stunnedUntil = later(p.stunnedUntil);
       p.nextZombieAt = later(p.nextZombieAt);
-      p.turnsAt = later(p.turnsAt);
       p.hungerAt = later(p.hungerAt);
-      p.cleanUntil = later(p.cleanUntil);
       p.nextGrowlAt = later(p.nextGrowlAt);
+      p.cellUntil = later(p.cellUntil);
+      p.gagUntil = later(p.gagUntil);
+      p.recoverUntil = later(p.recoverUntil);
       if (p.infectedAt !== null) p.infectedAt += ms; // signs keep the strength they had
     }
-    this.cureStationReadyAt = later(this.cureStationReadyAt);
   }
 
-  /** Voted out: sent to the Quarantine Cell. Out of the match, role kept secret. */
+  /** Voted out: sent to the Quarantine Cell for good. Out of the match, role kept secret. */
   quarantine(id) {
     const p = this.get(id);
     p.alive = false;
     p.quarantined = true;
-    this.discard.push(...p.hand.splice(0));
+    this.trash(...p.hand.splice(0));
   }
 }

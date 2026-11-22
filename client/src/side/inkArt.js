@@ -186,24 +186,6 @@ const F = {
     k.circle(x + 6, fy - 4, 4, 2, INK, DARK);
     k.circle(x + 34, fy - 4, 4, 2, INK, DARK);
   },
-  /** Blood Test booth (centred): screen, arm cuff and a glowing drop. */
-  bloodTest(k, x, fy, o, out) {
-    k.rect(x - 30, fy - 150, 60, 150, 2, INK, DARK);
-    k.hatch(x - 28, fy - 40, 56, 38, 6, 0.12);
-    k.rect(x - 22, fy - 138, 44, 36, 2, INK, '#050608');
-    k.neon('#ff4a5a', 12, () => {
-      k.c.fillStyle = '#ff6a78';
-      k.c.beginPath();
-      k.c.moveTo(x, fy - 134);
-      k.c.quadraticCurveTo(x + 10, fy - 118, x, fy - 108);
-      k.c.quadraticCurveTo(x - 10, fy - 118, x, fy - 134);
-      k.c.fill();
-    });
-    k.text('BLOOD TEST', x, fy - 92, 8, '#ffb0b8', 'center');
-    k.rect(x - 36, fy - 74, 72, 14, 3, INK, '#14161c');
-    k.neon('#3ee6d0', 8, () => k.line(x - 26, fy - 67, x + 26, fy - 67, 2, '#6ffff0'));
-    out.glows.push({ x, y: fy - 120, color: '#ff4a5a', radius: 80, intensity: 0.4, mode: 'pulse' });
-  },
   redCross(k, x, fy, o, out) {
     const y = fy - 190;
     k.neon('#ff4a5a', 18, () => {

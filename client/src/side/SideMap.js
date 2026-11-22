@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { FONT } from '../ui/HUD.js';
-import { WIDTH, ROOM_HEIGHT, ORIGIN_X, FLOORS, TOP, ROOMS, LADDERS, DUEL_TABLES, SUPPLY_BOXES, BLOOD_TEST, CURE_STATION, EMERGENCY_BUTTON } from './facility.js';
+import { WIDTH, ROOM_HEIGHT, ORIGIN_X, FLOORS, TOP, ROOMS, LADDERS, DUEL_TABLES, SUPPLY_BOXES, EMERGENCY_BUTTON } from './facility.js';
 import { ROOMS as ROOM_INFO } from '../../../shared/constants.js';
 
 const FLOOR_GAP = 300; // world px between floor lines
@@ -39,8 +39,6 @@ export default class SideMap {
     row(52, scene.add.rectangle(8, 52, 11, 9, 0xf2b84a), 'Card refill');
     row(74, scene.add.rectangle(8, 74, 4, 12, 0xd9b526), 'Ladder');
     row(96, scene.add.star(8, 96, 4, 3, 7, 0xff3b4a), 'Emergency Button');
-    row(118, scene.add.circle(8, 118, 5, 0xff6a78).setStrokeStyle(2, 0xffffff), 'Blood Test');
-    row(140, scene.add.circle(8, 140, 5, 0x3ee6d0).setStrokeStyle(2, 0xffffff), 'Cure machine');
     this.root.add([this.backdrop, this.panel, this.hit, ...this.labels, this.title, this.legend, this.dot]);
     scene.input.keyboard?.on('keydown-M', this.toggle, this);
     scene.input.keyboard?.on('keydown-ESC', () => this.big && this.toggle());
@@ -122,13 +120,8 @@ export default class SideMap {
       const r = this.big ? 6 : 2.5;
       g.fillStyle(0xf2b84a, 1).fillRect(a.x - r, a.y - r * 0.8, r * 2, r * 1.6);
     }
-    // stations
+    // emergency button
     const sr = this.big ? 6 : 2.5;
-    for (const [spot, color] of [[BLOOD_TEST, 0xff6a78], [CURE_STATION, 0x3ee6d0]]) {
-      const a = this.pt(spot.x, FLOORS[spot.floor].y - 20);
-      g.fillStyle(color, 1).fillCircle(a.x, a.y, sr);
-      if (this.big) g.lineStyle(2, 0xffffff, 0.9).strokeCircle(a.x, a.y, sr);
-    }
     const eb = this.pt(EMERGENCY_BUTTON.x, FLOORS[EMERGENCY_BUTTON.floor].y - 20);
     g.fillStyle(0xff3b4a, 1).fillTriangle(eb.x - sr, eb.y + sr, eb.x + sr, eb.y + sr, eb.x, eb.y - sr);
     this.legend.setVisible(this.big && this.legendW > 0).setPosition(this.ox + w + pad + 24, this.oy);

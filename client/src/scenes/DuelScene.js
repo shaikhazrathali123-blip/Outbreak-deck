@@ -37,7 +37,7 @@ export default class DuelScene extends Phaser.Scene {
     // header
     this.title = this.add.text(W / 2, small ? 26 : 44, 'DUEL', { fontFamily: FONT, fontSize: small ? '24px' : '34px', fontStyle: '700', color: '#ffffff' })
       .setOrigin(0.5).setLetterSpacing(10).setShadow(0, 0, this.tableColor, 18, false, true);
-    const sub = 'HIGHEST NUMBER WINS  ·  ZOMBIE BITES  ·  GUN KILLS ZOMBIES, MISFIRES ON NUMBERS';
+    const sub = 'HIGHEST NUMBER WINS  ·  ZOMBIE BITES  ·  GUN KILLS ANYONE  ·  CURE CURES ZOMBIES';
     this.subtitle = this.add.text(W / 2, small ? 50 : 76, sub, { fontFamily: FONT, fontSize: '12px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(3);
 
     // table
@@ -196,8 +196,9 @@ export default class DuelScene extends Phaser.Scene {
 
     const { width: W } = this.scale;
     const kind = r.kind;
-    const headline = fake ? 'FAKE DUEL' : draw ? 'DRAW' : kind === 'kill' ? (youWon ? 'BANG!' : 'SHOT') : kind === 'infect' ? (youWon ? 'BITE!' : 'BITTEN?') : kind === 'misfire' && !youWon ? 'MISFIRE!' : youWon ? 'YOU WIN' : 'YOU LOSE';
-    const color = fake ? '#3ee67a' : draw ? '#e9e4d6' : kind === 'kill' ? '#ff7a3a' : kind === 'infect' ? '#3ee67a' : kind === 'misfire' ? '#ff9a5a' : youWon ? '#3ee6d0' : '#ff4a5a';
+    const cured = kind === 'cure' || (kind === 'cure-number' && out.effects.some((e) => e.type === 'cured'));
+    const headline = fake ? 'FAKE DUEL' : draw ? 'DRAW' : kind === 'kill' ? (youWon ? 'BANG!' : 'SHOT') : kind === 'infect' ? (youWon ? 'BITE!' : 'BITTEN') : cured ? 'CURED' : youWon ? 'YOU WIN' : 'YOU LOSE';
+    const color = fake ? '#3ee67a' : draw ? '#e9e4d6' : kind === 'kill' ? '#ff7a3a' : kind === 'infect' ? '#3ee67a' : cured ? '#3e8bff' : youWon ? '#3ee6d0' : '#ff4a5a';
     if (kind === 'kill' || kind === 'infect') this.cameras.main.shake(260, 0.012);
     this.title.setText(headline).setColor(color).setShadow(0, 0, color, 22, false, true).setAlpha(0);
     this.tweens.add({ targets: this.title, alpha: 1, duration: 250 });
@@ -238,16 +239,20 @@ export default class DuelScene extends Phaser.Scene {
         lines.push(e.to === youId ? [`You took their ${cardName(e.card)}`, '#e9e4d6'] : [`${opp.name} took your ${cardName(e.card)}`, '#c9ced8']);
       } else if (e.type === 'draw') lines.push(['Draw. Both cards go back to your hands', '#c9ced8']);
       else if (e.type === 'fake') lines.push(['You are both infected: nobody loses a card.', '#3ee67a'], ['To anyone watching it looked like a real duel.', '#c9ced8']);
-      else if (e.type === 'misfire' && e.player === youId) lines.push(['Your Gun MISFIRED. They played a number!', '#ff9a5a', 20], [`Everyone heard it. You are stunned ${RULES.stunTime / 1000}s.`, '#ffb04a']);
-      else if (e.type === 'misfire') lines.push([`${opp.name}'s Gun misfired on you. Everyone heard it.`, '#ff9a5a'], [`${opp.name} is stunned ${RULES.stunTime / 1000}s. Why were they so sure?`, '#c9ced8']);
-      else if (e.type === 'already-bitten') lines.push([e.player === youId ? 'You were already bitten.' : `${opp.name} was already bitten.`, '#c6f03a']);
+      else if (e.type === 'killed' && e.player === youId) lines.push(['YOU WERE SHOT', '#ff4a5a', 22], ['You are out of the match. Your role stays secret.', '#ff6a78']);
       else if (e.type === 'killed') {
-        if (e.player === youId) lines.push(['YOU WERE SHOT', '#ff4a5a', 22], ['Your zombie run is over.', '#ff6a78']);
-        else lines.push([`ZOMBIE KILLED`, '#ff7a3a', 22], [`${opp.name} was infected. You stopped them.`, '#e9e4d6']);
-      } else if (e.type === 'cured' && e.player === youId) lines.push(['Your Cure saved you!', '#3e8bff', 20], [`${opp.name} played a ZOMBIE card: they are infected`, '#3ee67a']);
-      else if (e.type === 'cured') lines.push([`${opp.name} had a Cure. No infection.`, '#3e8bff']);
-      else if (e.type === 'bitten' && e.player === youId) lines.push(['YOU WERE BITTEN', '#c6f03a', 22], [`You turn in ${RULES.incubation / 1000}s. Cure Lab, or warn the others?`, '#3ee6d0']);
-      else if (e.type === 'bitten' && e.by === youId) lines.push([`You bit ${opp.name}`, '#3ee67a', 20], [`They turn in ${RULES.incubation / 1000}s, unless they find a Cure.`, '#c9ced8']);
+        const theyZombie = out.cards[opp.id]?.kind === 'zombie';
+        lines.push(theyZombie ? ['ZOMBIE KILLED', '#ff7a3a', 22] : [`You shot ${opp.name}`, '#ff7a3a', 22]);
+        lines.push([theyZombie ? 'They played a Zombie card. Everyone heard the shot.' : 'Were they a zombie? Nobody will ever know. Everyone heard it.', '#e9e4d6']);
+        lines.push([`You are stunned ${RULES.shotStun / 1000}s.`, '#ffb04a']);
+      } else if (e.type === 'cured' && e.player === youId) lines.push(['YOU WERE CURED', '#3e8bff', 22], [`Human again. Gagged ${RULES.gagTime / 1000}s, and you forget the other zombies.`, '#c9ced8']);
+      else if (e.type === 'cured') lines.push([`${opp.name} WAS A ZOMBIE: NOW CURED`, '#3e8bff', 20], [e.via === 'held' ? 'Your Cure stopped the bite.' : 'Your Cure worked.', '#c9ced8']);
+      else if (e.type === 'cell' && e.player === youId) lines.push([`You go to quarantine for ${RULES.cureQuarantine / 1000}s (gagged, can't move).`, '#ff9a5a']);
+      else if (e.type === 'cure-wasted' && e.player === youId) lines.push(['CURE WASTED', '#ff9a5a', 20], [`${opp.name} is human. You lose the duel.`, '#c9ced8']);
+      else if (e.type === 'cure-wasted') lines.push([`${opp.name} wasted a Cure on you.`, '#c9ced8']);
+      else if (e.type === 'immune') lines.push([e.player === youId ? 'Still recovering from the cure: the bite did nothing.' : `${opp.name} is still recovering: no bite.`, '#c9ced8']);
+      else if (e.type === 'bitten' && e.player === youId) lines.push(['YOU WERE BITTEN', '#3ee67a', 22], ['You are a ZOMBIE now. Spread the strain.', '#3ee67a']);
+      else if (e.type === 'bitten' && e.by === youId) lines.push([`You bit ${opp.name}`, '#3ee67a', 20], ['They are one of you now.', '#c9ced8']);
       else if (e.type === 'stunned') lines.push([e.player === youId ? `You are stunned for ${RULES.stunTime / 1000} seconds` : `${opp.name} is stunned`, '#ffb04a']);
       else if (e.type === 'clue' && e.to === youId) lines.push([`CLUE: ${e.text}`, '#ffd27a']);
     }

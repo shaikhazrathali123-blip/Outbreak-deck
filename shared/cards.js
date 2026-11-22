@@ -27,7 +27,7 @@ const newId = () => `c${nextId++}`;
 
 export const numberCard = (value) => ({ id: newId(), kind: 'number', value });
 export const zombieCard = () => ({ id: newId(), kind: 'zombie' });
-export const gunCard = () => ({ id: newId(), kind: 'gun' });
+export const gunCard = (bullets = RULES.gunBullets) => ({ id: newId(), kind: 'gun', bullets });
 export const cureCard = () => ({ id: newId(), kind: 'cure' });
 
 /**
@@ -48,8 +48,11 @@ export function createDeck(rng, copies = 1) {
 /** How many deck copies a match needs (7 cards each plus plenty to refill from). */
 export const decksFor = (players) => Math.max(1, Math.ceil((players * 7 * 2) / 42));
 
-/** Can this card be played in a duel? (Cure works on its own.) */
-export const isPlayable = (card) => card.kind !== 'cure';
+/** Can this card be played in a duel? Every kind can (a Cure is played on a zombie, or held as a shield). */
+export const isPlayable = (card) => !!card;
+
+/** Guns and Cures are humans-only. */
+export const isHumanOnly = (card) => card.kind === 'gun' || card.kind === 'cure';
 
 export function cardName(card) {
   return card.kind === 'number' ? `${card.value}` : CARD_INFO[card.kind].name;

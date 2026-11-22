@@ -1,5 +1,5 @@
 import { RULES } from '../../../shared/constants.js';
-import { ORIGIN_X, WIDTH, ROOMS, LADDERS, BLOOD_TEST, CURE_STATION, EMERGENCY_BUTTON } from '../side/facility.js';
+import { ORIGIN_X, WIDTH, ROOMS, LADDERS, EMERGENCY_BUTTON } from '../side/facility.js';
 import { navigate } from '../side/Navigator.js';
 
 // How each difficulty plays.
@@ -9,15 +9,15 @@ import { navigate } from '../side/Navigator.js';
 //   hunt / lurk how often infected chase a visible human / ms they "act normal" after a bite
 //   notice      how well humans read infection signs
 //   zombieUse   chance an infected plays their Zombie card against a human
-//   gunNerve    how suspicious a human must be before firing a Gun
+//   gunNerve    how suspicious a human must be before firing a Gun (it kills humans too)
+//   cureNerve   how suspicious a human must be before playing a Cure on someone
 //   voteNerve   how suspicious a human must be to vote someone out (lower = sloppier votes)
 //   callNerve   how suspicious a human must be to walk to the Emergency Button
-//   testChance  chance per think that a human without a badge goes for a Blood Test
 //   fakeDuel    chance per think that an infected starts a fake duel with an ally in front of humans
 export const DIFFICULTY = {
-  easy: { think: [1500, 2800], aggression: 0.12, accept: 0.55, smart: 0.2, sight: 280, speed: 0.8, hunt: 0.45, lurk: 35000, notice: 0.35, zombieUse: 0.7, gunNerve: 3.5, voteNerve: 1.2, callNerve: 5, testChance: 0.03, fakeDuel: 0.08 },
-  normal: { think: [900, 1800], aggression: 0.2, accept: 0.65, smart: 0.65, sight: 400, speed: 0.92, hunt: 0.55, lurk: 25000, notice: 0.5, zombieUse: 0.85, gunNerve: 2.5, voteNerve: 1.8, callNerve: 4, testChance: 0.06, fakeDuel: 0.15 },
-  hard: { think: [500, 1100], aggression: 0.28, accept: 0.7, smart: 1, sight: 540, speed: 1, hunt: 0.7, lurk: 18000, notice: 0.75, zombieUse: 0.95, gunNerve: 2, voteNerve: 2.4, callNerve: 3.5, testChance: 0.09, fakeDuel: 0.22 },
+  easy: { think: [1500, 2800], aggression: 0.12, accept: 0.55, smart: 0.2, sight: 280, speed: 0.8, hunt: 0.45, lurk: 35000, notice: 0.35, zombieUse: 0.7, gunNerve: 4, cureNerve: 1.8, voteNerve: 1.2, callNerve: 5, fakeDuel: 0.08 },
+  normal: { think: [900, 1800], aggression: 0.2, accept: 0.65, smart: 0.65, sight: 400, speed: 0.92, hunt: 0.55, lurk: 25000, notice: 0.5, zombieUse: 0.85, gunNerve: 3.2, cureNerve: 1.5, voteNerve: 1.8, callNerve: 4, fakeDuel: 0.15 },
+  hard: { think: [500, 1100], aggression: 0.28, accept: 0.7, smart: 1, sight: 540, speed: 1, hunt: 0.7, lurk: 18000, notice: 0.75, zombieUse: 0.95, gunNerve: 2.8, cureNerve: 1.2, voteNerve: 2.4, callNerve: 3.5, fakeDuel: 0.22 },
 };
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -30,17 +30,17 @@ const FAKE_REASONS = [
   (n) => `${n} ran from me twice. Why run if you're clean?`,
   (n) => `I saw a green glint behind ${n}'s visor.`,
   (n) => `${n} was alone near the Quarantine Cell. Very strange.`,
-  (n) => `${n} has no badge and won't go near the Blood Test.`,
+  (n) => `${n} keeps avoiding duels. What are they hiding?`,
 ];
 
 /**
  * Decides what one bot does. Each frame it returns joystick-style input;
  * every so often it "thinks" and picks a new goal:
- * refill when out of cards · bitten bots pick a plan (cure / warn / hide) ·
- * humans call meetings and take Blood Tests · infected hunt visible humans while
- * they hold a Zombie card (always when starving) and stage fake duels with allies ·
- * humans with a Gun hunt players they strongly suspect · otherwise wander.
- * Chases override all of that. In meetings, bots talk (true or lying) and vote.
+ * refill when out of cards · humans call meetings · infected hunt visible humans
+ * while they hold a Zombie card (always when starving) and stage fake duels with
+ * allies · humans with a Gun or a Cure go after players they suspect · otherwise
+ * wander. Chases override all of that; the cure cell holds them still.
+ * In meetings, bots talk (true or lying) and vote.
  */
 export default class BotBrain {
   constructor(session, actor, difficulty = 'normal') {
@@ -55,8 +55,6 @@ export default class BotBrain {
     this.lurkUntil = 0; // infected bots lie low for a while after biting someone
     this.suspicion = new Map(); // playerId -> how suspicious they seem
     this.evidence = new Map(); // playerId -> { text, weight }: what they would say in a meeting
-    this.plan = null; // while bitten: 'cure' | 'warn' | 'hide'
-    this.wantTest = false;
     this.nextSpeakAt = Infinity;
     this.voteAt = Infinity;
   }
@@ -98,27 +96,49 @@ export default class BotBrain {
     return best?.id ?? null;
   }
 
-  // ------------------------------------------------------------ bites
-  onBitten(byId) {
-    this.suspect(byId, 10, `${this.s.name(byId)} BIT me with a Zombie card!`);
-    const r = Math.random();
-    this.plan = r < 0.55 ? 'cure' : r < 0.8 ? 'warn' : 'hide';
-    this.mode = 'idle';
-    this.goal = null;
-    this.nextThink = 0;
-  }
-
-  onCured() {
-    this.plan = null;
-  }
-
+  // ------------------------------------------------------------ what happened to me / around me
+  /** Bitten: a zombie now, at once. */
   onTurned() {
-    this.plan = null;
     this.suspicion.clear();
     this.evidence.clear();
     this.mode = 'idle';
     this.goal = null;
     this.lurkUntil = this.s.now() + 8000;
+  }
+
+  /** Cured: human again, and the other zombies are forgotten. */
+  onCured() {
+    this.suspicion.clear();
+    this.evidence.clear();
+    this.mode = 'idle';
+    this.goal = null;
+    this.target = null;
+  }
+
+  /** Used a Cure on a zombie: 60s in the cell. */
+  toCell() {
+    this.mode = 'cell';
+    this.goal = null;
+    this.target = null;
+  }
+
+  released() {
+    this.mode = 'idle';
+    this.nextThink = 0;
+  }
+
+  /** My Cure was wasted: that player is human. */
+  onCureWasted(oppId) {
+    this.suspicion.set(oppId, 0);
+    this.evidence.delete(oppId);
+  }
+
+  /** Every shot is announced (shooter only, never the target's role). */
+  onShot(shooterId, victimId) {
+    this.suspicion.delete(victimId);
+    if (!this.human || shooterId === this.a.id) return;
+    if (this.sus(victimId) >= 2) this.suspicion.set(shooterId, Math.max(0, this.sus(shooterId) - 1));
+    else this.suspect(shooterId, 1.5, `${this.s.name(shooterId)} shot ${this.s.name(victimId)}, who seemed fine to me.`);
   }
 
   // ------------------------------------------------------------ chases
@@ -164,7 +184,7 @@ export default class BotBrain {
       if (nav.arrived) this.goal = this.fleeGoal(this.fleeFrom);
       return nav;
     }
-    if (this.s.using.has(this.a.id)) return { x: 0, y: 0 }; // standing at a machine
+    if (this.mode === 'cell') return { x: 0, y: 0 }; // locked in the quarantine cell
     if (now >= this.nextThink) {
       this.think(now);
       this.nextThink = now + rand(...this.cfg.think);
@@ -183,7 +203,7 @@ export default class BotBrain {
       } else this.goal = { floor: t.floor(), x: t.x };
     }
     if (!this.goal) return { x: 0, y: 0 };
-    const precise = ['refill', 'test', 'cure', 'meeting'].includes(this.mode);
+    const precise = ['refill', 'meeting'].includes(this.mode);
     const nav = navigate(this.a, this.goal, precise ? 6 : 14);
     if (nav.arrived) this.arrive(now);
     return nav.arrived ? { x: 0, y: 0 } : nav;
@@ -199,19 +219,7 @@ export default class BotBrain {
       this.mode = 'idle';
       this.goal = null;
       this.s.callMeeting(this.a.id);
-    } else if (this.mode === 'test' || this.mode === 'cure') {
-      if (this.mode === 'cure' && this.s.match.cureStationReadyAt > now) return; // wait for the recharge
-      this.s.useStation(this.a.id, this.mode);
     }
-  }
-
-  /** The Blood Test / Cure machine finished (res) or was interrupted (null). */
-  stationDone(kind, res) {
-    if (this.mode === kind) {
-      this.mode = 'idle';
-      this.goal = null;
-    }
-    if (kind === 'test' && res) this.wantTest = false;
   }
 
   goTo(mode, spot) {
@@ -222,11 +230,7 @@ export default class BotBrain {
   think(now) {
     const m = this.s.match;
     for (const [id, v] of this.suspicion) this.suspicion.set(id, v * 0.97); // suspicion fades
-    const bitten = m.isBitten(this.a.id);
-    if (this.mode === 'cure' && !bitten) this.mode = 'idle';
-    if (bitten && this.plan === 'cure') return this.goTo('cure', CURE_STATION);
-    if (bitten && this.plan === 'warn' && m.canCallMeeting(this.a.id, now).ok) return this.goTo('meeting', EMERGENCY_BUTTON);
-    if (bitten && this.plan === 'warn') this.plan = 'cure'; // can't call a meeting: try the machine instead
+    if (this.mode === 'cell') return;
     if (m.isExhausted(this.a.id)) {
       const box = this.s.nearestSupply(this.a);
       return this.goTo('refill', box);
@@ -235,13 +239,13 @@ export default class BotBrain {
       this.mode = 'idle';
       this.goal = null;
     }
-    if (['hunt', 'test', 'meeting'].includes(this.mode)) return;
+    if (['hunt', 'meeting'].includes(this.mode)) return;
 
     const seen = this.s.visibleActors(this.a, this.cfg.sight);
     if (this.me.role === 'infected') {
       // hunt while holding a Zombie card; hunger makes them reckless
       const starving = m.isStarving(this.a.id, now);
-      const prey = seen.filter((o) => m.get(o.id).role === 'human' && !m.isBitten(o.id) && this.s.canDuel(this.a.id, o.id));
+      const prey = seen.filter((o) => m.get(o.id).role === 'human' && !m.isRecovering(o.id, now) && this.s.canDuel(this.a.id, o.id));
       if (prey.length && this.has('zombie') && (starving || (now > this.lurkUntil && Math.random() < this.cfg.hunt))) return this.hunt(prey);
       // put on a show: a fake duel with an ally while humans are watching
       const humansWatching = seen.some((o) => m.get(o.id).role === 'human');
@@ -251,16 +255,15 @@ export default class BotBrain {
       // humans notice infection signs (green tint, twitching, glowing footprints)
       for (const o of seen) {
         const strength = this.s.signStrength(o.id);
-        if (strength > 0.3 && Math.random() < this.cfg.notice) this.suspect(o.id, strength * 0.4, `${o.name} looks green and keeps twitching.`);
-        if (m.hasBadge(o.id, now)) this.suspicion.set(o.id, this.sus(o.id) * 0.9);
+        if (strength > 0.3 && Math.random() < this.cfg.notice) this.suspect(o.id, strength * 0.4, `${o.name} keeps twitching, and I saw a green flicker.`);
       }
       // strong suspicion: call a meeting
       const top = this.topSuspect();
       if (top && this.sus(top) >= this.cfg.callNerve && m.canCallMeeting(this.a.id, now).ok && !this.s.meeting) return this.goTo('meeting', EMERGENCY_BUTTON);
-      // no badge (or accused in a meeting): go and get tested
-      if (!m.hasBadge(this.a.id, now) && !bitten && (this.wantTest || Math.random() < this.cfg.testChance)) return this.goTo('test', BLOOD_TEST);
-      const suspects = seen.filter((o) => this.sus(o.id) >= this.cfg.gunNerve && this.s.canDuel(this.a.id, o.id));
-      if (suspects.length && this.has('gun')) return this.hunt(suspects); // armed: go after them
+      // armed with a Gun or a Cure: go after the players they suspect
+      const nerve = Math.min(this.has('gun') ? this.cfg.gunNerve : Infinity, this.has('cure') ? this.cfg.cureNerve : Infinity);
+      const suspects = seen.filter((o) => this.sus(o.id) >= nerve && this.s.canDuel(this.a.id, o.id));
+      if (suspects.length) return this.hunt(suspects);
       const scary = seen.find((o) => this.sus(o.id) >= 2.5);
       if (scary && Math.random() < 0.5) return this.wander(scary);
       const others = seen.filter((o) => this.s.canDuel(this.a.id, o.id) && this.sus(o.id) < 2);
@@ -294,23 +297,32 @@ export default class BotBrain {
     const from = this.s.match.get(fromId);
     if (me.role === 'infected' && from.role === 'infected') return true; // a fake duel with an ally
     if (me.role === 'infected') return Math.random() < (this.has('zombie') ? 0.9 : 0.45);
-    if (this.sus(fromId) >= 2) {
-      // a suspect challenges me: accept only if I can shoot them
-      return this.has('gun') && this.sus(fromId) >= this.cfg.gunNerve ? true : Math.random() < 0.25;
+    const sus = this.sus(fromId);
+    if (sus >= 2) {
+      // a suspect challenges me: accept only if I can shoot or cure them (a bite turns me at once)
+      if ((this.has('gun') && sus >= this.cfg.gunNerve) || this.has('cure')) return true;
+      return Math.random() < 0.15;
     }
     return Math.random() < this.cfg.accept;
   }
 
-  /** Which card to play against `oppId`. */
+  /** Which card to play against `oppId`. Humans never waste a Gun or Cure on someone they trust. */
   pickCard(oppId) {
     const m = this.s.match;
     const id = this.a.id;
     const opp = m.get(oppId);
-    if (this.me.role === 'infected' && opp.role === 'infected') return this.randomNumber() ?? m.randomCard(id); // fake duel
-    if (this.me.role === 'infected' && this.has('zombie') && !m.isBitten(oppId) && Math.random() < this.cfg.zombieUse) return m.firstOf(id, 'zombie');
-    if (this.me.role === 'human' && this.has('gun') && this.sus(oppId) >= this.cfg.gunNerve) return m.firstOf(id, 'gun');
+    const now = this.s.now();
+    if (this.me.role === 'infected') {
+      if (opp.role === 'infected') return this.randomNumber() ?? m.randomCard(id); // fake duel
+      if (this.has('zombie') && !m.isRecovering(oppId, now) && Math.random() < this.cfg.zombieUse) return m.firstOf(id, 'zombie');
+      return (Math.random() < this.cfg.smart ? m.bestNumber(id) : this.randomNumber()) ?? m.randomCard(id);
+    }
+    const sus = this.sus(oppId);
+    if (this.has('gun') && sus >= this.cfg.gunNerve) return m.firstOf(id, 'gun');
+    if (this.has('cure') && sus >= this.cfg.cureNerve) return m.firstOf(id, 'cure');
     const number = Math.random() < this.cfg.smart ? m.bestNumber(id) : this.randomNumber();
-    return number ?? m.randomCard(id);
+    // nothing but specials left: a wasted Cure beats shooting someone I trust
+    return number ?? m.firstOf(id, 'cure') ?? m.firstOf(id, 'gun');
   }
 
   randomNumber() {
@@ -345,8 +357,6 @@ export default class BotBrain {
     this.idleUntil = now;
     this.nextSpeakAt = Infinity;
     this.voteAt = Infinity;
-    // accused humans want a Clean badge to clear their name
-    if (this.human && meeting.log.some((x) => x.kind === 'accuse' && x.target === this.a.id)) this.wantTest = true;
   }
 
   /** Listen to something said in the meeting. Infected bots know the truth and ignore it all. */
@@ -357,7 +367,7 @@ export default class BotBrain {
     const from = msg.from;
     const t = msg.target;
     const name = this.s.name(from);
-    const trust = clamp(1 - this.sus(from) / 4, 0.15, 1) * (m.hasBadge(from, now) ? 1.3 : 1);
+    const trust = clamp(1 - this.sus(from) / 4, 0.15, 1);
     if (msg.kind === 'accuse') {
       if (t === this.a.id) {
         this.suspect(from, 1.5, `${name} accused me, and I know I'm human.`);
@@ -366,15 +376,8 @@ export default class BotBrain {
       } else if (t) this.suspect(t, 1.1 * trust);
     }
     if (msg.kind === 'vouch' && t && t !== this.a.id) this.suspicion.set(t, Math.max(0, this.sus(t) - 0.8 * trust));
-    if (msg.kind === 'clean') {
-      if (m.hasBadge(from, now)) this.suspicion.set(from, Math.max(0, this.sus(from) - 2));
-      else this.suspect(from, 2, `${name} claimed to be clean, but has no badge.`);
-    }
-    if (msg.kind === 'bitten') {
-      this.suspect(from, 3, `${name} admitted being bitten. They will turn.`);
-      if (t === this.a.id) this.suspect(from, 2);
-      else if (t) this.suspect(t, 2.5 * trust, `${name} says ${this.s.name(t)} bit them.`);
-    }
+    // "I'm clean" is only a claim now: it helps a little, from someone you already trust
+    if (msg.kind === 'clean') this.suspicion.set(from, Math.max(0, this.sus(from) - 0.5 * trust));
   }
 
   /** Something to say right now (or null). Humans share evidence; infected lie and deflect. */
@@ -394,56 +397,39 @@ export default class BotBrain {
       }
       const accusedAlly = meeting.log.find((x) => x.kind === 'accuse' && x.target !== myId && m.get(x.target)?.role === 'infected' && m.get(x.target).alive);
       if (accusedAlly && Math.random() < 0.3) return { kind: 'vouch', target: accusedAlly.target, text: `${nameOf(accusedAlly.target)} was with me the whole time. They're fine.` };
-      // frame a human: join the crowd if one is already accused, else pick one without a badge
-      const humans = this.s.present().filter((p) => p.role === 'human' && p.id !== myId);
+      // frame a human: join the crowd if one is already accused, else pick one who can be voted out
+      const humans = this.s.candidates().filter((p) => p.role === 'human' && p.id !== myId);
       const accused = meeting.log.filter((x) => x.kind === 'accuse' && humans.some((h) => h.id === x.target)).map((x) => x.target);
-      const unbadged = humans.filter((h) => !m.hasBadge(h.id, now));
-      const target = accused.length && Math.random() < 0.6 ? pick(accused) : unbadged.length ? pick(unbadged).id : null;
+      const target = accused.length && Math.random() < 0.6 ? pick(accused) : humans.length ? pick(humans).id : null;
       if (target && Math.random() < 0.75) return { kind: 'accuse', target, text: pick(FAKE_REASONS)(nameOf(target)) };
       return Math.random() < 0.5 ? { kind: 'skip', text: 'We have no proof. Skip, or we lose a human.' } : null;
     }
 
-    // human (maybe bitten)
-    if (m.isBitten(myId) && this.plan === 'warn' && !this.warned) {
-      this.warned = true;
-      const by = this.me.bittenBy;
-      return { kind: 'bitten', target: by, text: `I was BITTEN by ${nameOf(by)}! Vote ${nameOf(by)} out. I'm going to the Cure Lab.` };
-    }
+    // human
     if (accusers.length && !this.denied) {
       this.denied = true;
-      const left = Math.ceil((this.me.cleanUntil - now) / 1000);
-      if (left > 0) return { kind: 'clean', text: `I tested CLEAN ${Math.round((RULES.cleanBadge / 1000) - left)}s ago. Check my badge.` };
-      return { kind: 'deny', text: "It's not me! I'll take a Blood Test after this." };
+      return Math.random() < 0.5 ? { kind: 'clean', text: "I'm clean, I swear. Check my duels." } : { kind: 'deny', text: "It's not me! I'm human." };
     }
     const top = this.topSuspect([myId]);
     if (top && this.sus(top) >= 1.5 && !meeting.log.some((x) => x.from === myId && x.target === top && x.kind === 'accuse')) {
       const why = this.evidence.get(top)?.text ?? `${nameOf(top)} has been acting strange.`;
       return { kind: 'accuse', target: top, text: `${why} I vote ${nameOf(top)}.` };
     }
-    if (m.hasBadge(myId, now) && !meeting.log.some((x) => x.from === myId && x.kind === 'clean')) {
-      return { kind: 'clean', text: `I'm clean: tested ${Math.round((now - (this.me.cleanUntil - RULES.cleanBadge)) / 1000)}s ago.` };
-    }
     return Math.random() < 0.5 ? { kind: 'skip', text: 'No idea yet. Skip unless someone is sure.' } : null;
   }
 
-  /** Vote: a player id or 'skip'. */
+  /** Vote: a player id or 'skip'. Nobody in the 60s cure quarantine can be voted out. */
   castVote(meeting) {
-    const now = this.s.clock();
-    const m = this.s.match;
     const myId = this.a.id;
-    const present = this.s.present().filter((p) => p.id !== myId);
+    const choices = this.s.candidates().filter((p) => p.id !== myId);
     if (this.me.role === 'infected') {
       // vote with the crowd against a human; never let an ally go
       const score = (id) => [...meeting.votes.values()].filter((v) => v === id).length * 2 + meeting.log.filter((x) => x.kind === 'accuse' && x.target === id).length;
-      const humans = present.filter((p) => p.role === 'human').sort((a, b) => score(b.id) - score(a.id));
+      const humans = choices.filter((p) => p.role === 'human').sort((a, b) => score(b.id) - score(a.id));
       if (humans[0] && score(humans[0].id) > 0) return humans[0].id;
-      const unbadged = humans.filter((h) => !m.hasBadge(h.id, now));
-      return unbadged.length && Math.random() < 0.4 ? pick(unbadged).id : 'skip';
+      return humans.length && Math.random() < 0.4 ? pick(humans).id : 'skip';
     }
-    if (m.isBitten(myId) && this.me.bittenBy && m.get(this.me.bittenBy).alive) return this.me.bittenBy;
-    const top = this.topSuspect([myId]);
-    if (!top) return 'skip';
-    const nerve = this.cfg.voteNerve + (m.hasBadge(top, now) ? 2 : 0); // badges protect, a little
-    return this.sus(top) >= nerve ? top : 'skip';
+    const top = this.topSuspect([myId, ...this.s.present().filter((p) => !choices.includes(p)).map((p) => p.id)]);
+    return top && this.sus(top) >= this.cfg.voteNerve ? top : 'skip';
   }
 }
