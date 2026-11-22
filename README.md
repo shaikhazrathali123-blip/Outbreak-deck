@@ -138,12 +138,12 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 - Your choice: **run to the Cure Lab** machine (stand still 6 seconds; it then needs 60 seconds to recharge, and anyone nearby sees you use it), **warn people** in a meeting, or **hide it**.
 - Picking up a Cure card while bitten cures you at once.
 - When the time runs out you **turn**: a Zombie card grows in your hand and you play for the Infected team.
-- After turning, your character slowly shows **subtle signs** over 60 seconds: slight green tint, small twitch animation, footprints glowing faintly.
+- After turning, your character slowly shows **subtle signs** over 60 seconds: a barely-there green tint with a rare split-second green flicker, a small twitch now and then, and faint glowing footprints. Nothing obvious: you have to watch closely.
 - Meetings pause the incubation clock (like every other timer).
 
 ### 5b. Hunger
 - An infected player must bite someone at least every **90 seconds**.
-- After that they are **STARVING**: they glow bright green for everyone, their signs are at full strength, and a hungry growl from their room is announced every 20 seconds. A bite feeds them and resets the timer.
+- After that they are **STARVING**: every 20 seconds a hungry growl from their room is announced and they flare bright green for a moment (only people who can see them notice). A bite feeds them and resets the timer.
 
 ### 5c. Blood Test and the Clean badge
 - The **Blood Test** booth is in the **Medbay** (floor 2). Press it and stand still 4 seconds.
@@ -500,7 +500,7 @@ Each phase ends with something you can **play and test**. Don't start the next p
 - [x] Blood Test booth in the Medbay; public Clean badge for 60 seconds; positives are announced
 - [x] Incubation: bitten humans turn after 45 seconds; Cure Lab machine (recharges 60s) or a Cure card saves them
 - [x] Gun misfires are public and stun the shooter for 12 seconds
-- [x] Hunger: infected must bite every 90 seconds or start STARVING (visible glow + growls)
+- [x] Hunger: infected must bite every 90 seconds or start STARVING (a growl every 20s + a short green flare)
 - [x] Fake duels between infected players (they keep their cards)
 
 **Starting numbers for playtesting** (all in `RULES`): incubation 45s, Clean badge 60s, hunger 90s, Zombie regrow 40s. Target ~50% human wins. If zombies win too much, make incubation longer or hunger shorter; if humans win too much, do the opposite.

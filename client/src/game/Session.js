@@ -447,7 +447,8 @@ export default class Session {
     const youInfected = this.match.get(YOU).role === 'infected';
     for (const a of this.actors.values()) {
       const alive = this.alive(a.id);
-      const starving = alive && this.match.isStarving(a.id, now);
+      // a starving zombie only flares up for a moment, each time it growls
+      const starving = alive && this.match.isStarving(a.id, now) && now < (a.growlFlashUntil ?? 0);
       const ally = a.id !== YOU && youInfected && alive && this.match.get(a.id).role === 'infected';
       const want = starving ? 'starving' : ally ? 'ally' : null;
       if ((a.glowKind ?? null) === want) continue;
@@ -483,11 +484,13 @@ export default class Session {
       }
       if (e.type === 'cured') this.brains.get(e.player)?.onCured();
       if (e.type === 'starving') {
-        if (you) this.emit('toast', 'You are STARVING. Everyone can see you glow. Bite someone!', '#b4ff3a', 6000);
+        if (you) this.emit('toast', 'You are STARVING. Every 20s you growl and flare green for a moment. Bite someone!', '#b4ff3a', 6000);
         this.updateGlows();
       }
       if (e.type === 'growl' || e.type === 'starving') {
         this.emit('toast', `A hungry growl echoes from the ${this.roomName(actor)}…`, '#b4ff3a', 3500);
+        actor.growlFlashUntil = this.now() + 2500;
+        this.updateGlows();
         for (const b of this.witnesses(actor)) b.suspect(e.player, 2, `${actor.name} is glowing and growling. Starving zombie!`);
       }
     }
@@ -875,13 +878,19 @@ export default class Session {
       if (!sign) this.signs.set(actor.id, (sign = { nextTwitch: now + 4000 + Math.random() * 5000, stepX: actor.x }));
       const t = this.signStrength(actor.id);
       if (t === 0) continue;
-      const c = Phaser.Display.Color.Interpolate.ColorWithColor({ r: 255, g: 255, b: 255 }, { r: 175, g: 255, b: 195 }, 1, t);
+      // Kept subtle on purpose: a barely-there tint and a rare green flicker, never a plain green suit.
+      if (t > 0.3 && now > (sign.nextFlicker ?? 0)) {
+        sign.nextFlicker = now + 8000 + Math.random() * 7000;
+        sign.flickerUntil = now + 160;
+      }
+      const flicker = now < (sign.flickerUntil ?? 0);
+      const c = flicker ? { r: 170, g: 255, b: 190 } : Phaser.Display.Color.Interpolate.ColorWithColor({ r: 255, g: 255, b: 255 }, { r: 235, g: 255, b: 238 }, 1, t);
       actor.sprite.setTint(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
       if (t > 0.25 && now > sign.nextTwitch && !this.busy.has(actor.id)) {
         sign.nextTwitch = now + 4000 + Math.random() * 6000;
         this.scene.tweens.add({ targets: actor.sprite, angle: Phaser.Math.Between(-6, 6), duration: 60, yoyo: true, repeat: 1 });
       }
-      if (t > 0.4 && actor.state.mode === 'walk' && Math.abs(actor.x - sign.stepX) > 26) {
+      if (t > 0.5 && actor.state.mode === 'walk' && Math.abs(actor.x - sign.stepX) > 60) {
         sign.stepX = actor.x;
         this.footprint(actor.x, actor.y);
       }
@@ -889,8 +898,8 @@ export default class Session {
   }
 
   footprint(x, y) {
-    const f = this.scene.add.ellipse(x, y - 1, 9, 3, 0x3ee67a, 0.55).setDepth(8.5).setBlendMode(Phaser.BlendModes.ADD);
-    this.scene.tweens.add({ targets: f, alpha: 0, duration: 5000, onComplete: () => f.destroy() });
+    const f = this.scene.add.ellipse(x, y - 1, 9, 3, 0x3ee67a, 0.3).setDepth(8.5).setBlendMode(Phaser.BlendModes.ADD);
+    this.scene.tweens.add({ targets: f, alpha: 0, duration: 3500, onComplete: () => f.destroy() });
   }
 
   updateLabels(now) {

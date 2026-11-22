@@ -12,7 +12,7 @@ adding a feature. This file only gives a short summary and the current state of 
   stuns the shooter 12s), CURE (automatic: blocks one bite; cures a bitten holder).
 - The mind-game rules (README "Game Rules" 5–8): bitten humans turn after 45s (incubation; Cure Lab machine
   or a Cure card saves them); Blood Test in the Medbay gives a public Clean badge for 60s (positive = public);
-  infected must bite every 90s or start STARVING (glow + growls); two infected get a fake duel (both keep
+  infected must bite every 90s or start STARVING (growl + a 2.5s green flare every 20s; infection signs are kept subtle on purpose); two infected get a fake duel (both keep
   cards); Emergency Button in the Central Hall calls a meeting (30s quick chat, 15s vote, most votes =
   Quarantine Cell, role kept secret; the match clock pauses).
 - Map: Helix Research Facility as a side-view cutaway: 4 floors, 15 rooms, 9 ladders, 10 duel tables

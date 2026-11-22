@@ -148,7 +148,7 @@ STEP 4 - RESULT
 
    A zombie must bite someone at least every 90 SECONDS.
    If not, they start STARVING:
-     - they glow bright green for everyone to see,
+     - every 20 seconds they flare green for a moment,
      - a hungry growl from their room is announced every 20 seconds.
    A bite feeds them and resets the clock.
 
@@ -197,10 +197,10 @@ STEP 4 - RESULT
      humans is false, so be careful.)
    - CURE: if your Cure saves you, the attacker is 100% a zombie.
    - SIGNS that grow over about 60 seconds after turning:
-        * a green tint on their suit
+        * a very faint green tint, and a rare split-second green flicker
         * they twitch now and then
         * they leave faintly glowing green footprints
-   - STARVING zombies glow and growl.
+   - STARVING zombies growl and flare green for a moment.
    - BLOOD TEST: a positive test is announced to everyone.
    - SHOTS and MISFIRES: everyone is told. A misfire means the
      shooter was sure... why?
@@ -268,7 +268,7 @@ STEP 4 - RESULT
    - Keep your Gun for someone you really suspect.
    - A Cure is gold: it saves you AND reveals the zombie.
    - Running can save your life. Head for a ladder.
-   - Watch for green tints, twitching and glowing footprints.
+   - Watch for green flickers, twitching and glowing footprints.
    - Get a Blood Test before you accuse anyone: a badge makes people
      believe you.
    - Bitten? 45 seconds is enough to reach the Cure Lab. Go!
@@ -279,7 +279,7 @@ STEP 4 - RESULT
    - If you have no Zombie card, play numbers: you can't infect,
      but you also can't be shot.
    - Watch out: a human who plays a Gun might have guessed right.
-   - Do not go hungry: starving zombies glow for everyone.
+   - Do not go hungry: starving zombies growl and flare green.
    - Duel your fellow zombies in front of humans. It looks normal.
    - In meetings, accuse humans who have no badge.
 
