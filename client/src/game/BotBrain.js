@@ -1,5 +1,5 @@
 import { RULES } from '../../../shared/constants.js';
-import { ORIGIN_X, WIDTH, ROOMS, LADDERS, EMERGENCY_BUTTON } from '../side/facility.js';
+import { ORIGIN_X, WIDTH, ROOMS, LADDERS, EMERGENCY_BUTTON, GENERATOR, BREAKER, EVAC_ROOM, EVAC_SPOT } from '../side/facility.js';
 import { navigate } from '../side/Navigator.js';
 
 // How each difficulty plays.
@@ -14,11 +14,16 @@ import { navigate } from '../side/Navigator.js';
 //   voteNerve   how suspicious a human must be to vote someone out (lower = sloppier votes)
 //   callNerve   how suspicious a human must be to walk to the Emergency Button
 //   fakeDuel    chance per think that an infected starts a fake duel with an ally in front of humans
+//   task        v3: chance per think that an idle human goes for a generator part
+//   sabotage    v3: chance per think that an infected walks to the breaker for the Blackout
+//   bluff       v3: chance to make a bluff call when they have a reason to
 export const DIFFICULTY = {
-  easy: { think: [1500, 2800], aggression: 0.12, accept: 0.55, smart: 0.2, sight: 280, speed: 0.8, hunt: 0.45, lurk: 35000, notice: 0.35, zombieUse: 0.7, gunNerve: 4, cureNerve: 1.8, voteNerve: 1.2, callNerve: 5, fakeDuel: 0.08 },
-  normal: { think: [900, 1800], aggression: 0.2, accept: 0.65, smart: 0.65, sight: 400, speed: 0.92, hunt: 0.55, lurk: 25000, notice: 0.5, zombieUse: 0.85, gunNerve: 3.2, cureNerve: 1.5, voteNerve: 1.8, callNerve: 4, fakeDuel: 0.15 },
-  hard: { think: [500, 1100], aggression: 0.28, accept: 0.7, smart: 1, sight: 540, speed: 1, hunt: 0.7, lurk: 18000, notice: 0.75, zombieUse: 0.95, gunNerve: 2.8, cureNerve: 1.2, voteNerve: 2.4, callNerve: 3.5, fakeDuel: 0.22 },
+  easy: { think: [1500, 2800], aggression: 0.12, accept: 0.55, smart: 0.2, sight: 280, speed: 0.8, hunt: 0.45, lurk: 35000, notice: 0.35, zombieUse: 0.7, gunNerve: 4, cureNerve: 1.8, voteNerve: 1.2, callNerve: 5, fakeDuel: 0.08, task: 0.2, sabotage: 0.03, bluff: 0.3 },
+  normal: { think: [900, 1800], aggression: 0.2, accept: 0.65, smart: 0.65, sight: 400, speed: 0.92, hunt: 0.55, lurk: 25000, notice: 0.5, zombieUse: 0.85, gunNerve: 3.2, cureNerve: 1.5, voteNerve: 1.8, callNerve: 4, fakeDuel: 0.15, task: 0.3, sabotage: 0.05, bluff: 0.5 },
+  hard: { think: [500, 1100], aggression: 0.28, accept: 0.7, smart: 1, sight: 540, speed: 1, hunt: 0.7, lurk: 18000, notice: 0.75, zombieUse: 0.95, gunNerve: 2.8, cureNerve: 1.2, voteNerve: 2.4, callNerve: 3.5, fakeDuel: 0.22, task: 0.4, sabotage: 0.08, bluff: 0.7 },
 };
+// v3: modes in which a bot is busy walking to (or using) something and shouldn't be distracted
+const ERRANDS = ['hunt', 'meeting', 'report', 'part', 'fit', 'breaker', 'work', 'evac'];
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -57,6 +62,7 @@ export default class BotBrain {
     this.evidence = new Map(); // playerId -> { text, weight }: what they would say in a meeting
     this.nextSpeakAt = Infinity;
     this.voteAt = Infinity;
+    this.nextEmoteAt = 0;
   }
 
   get id() {
@@ -73,6 +79,11 @@ export default class BotBrain {
 
   sus(id) {
     return this.suspicion.get(id) ?? 0;
+  }
+
+  /** How much they believe what `id` says (or shows). */
+  trust(id) {
+    return clamp(1 - this.sus(id) / 4, 0.15, 1);
   }
 
   /** Raise (or lower) suspicion. `why` is remembered as evidence to say in a meeting. */
@@ -133,6 +144,22 @@ export default class BotBrain {
     this.evidence.delete(oppId);
   }
 
+  /** v3: my bluff call cancelled their card: now I know something. */
+  noteCalled(oppId, kind) {
+    if (kind === 'zombie') this.suspect(oppId, 6, `I called ${this.s.name(oppId)}'s Zombie card in our duel. They are infected!`);
+    else this.suspicion.set(oppId, 0); // a Gun or a Cure: humans only
+  }
+
+  /** v3: someone near me emoted. A "SUS" from someone I trust makes me look at that player. */
+  seeEmote(fromId, kind, target) {
+    if (!this.human || fromId === this.a.id) return;
+    if (kind === 'sus' && target && target !== this.a.id) this.suspect(target, 0.5 * this.trust(fromId), `${this.s.name(fromId)} pointed at ${this.s.name(target)} and said SUS.`);
+    if (kind === 'help') {
+      const near = this.s.visibleActors(this.s.actors.get(fromId), 200).filter((o) => o.id !== this.a.id)[0];
+      if (near) this.suspect(near.id, 0.3 * this.trust(fromId));
+    }
+  }
+
   /** Every shot is announced (shooter only, never the target's role). */
   onShot(shooterId, victimId) {
     this.suspicion.delete(victimId);
@@ -185,6 +212,12 @@ export default class BotBrain {
       return nav;
     }
     if (this.mode === 'cell') return { x: 0, y: 0 }; // locked in the quarantine cell
+    if (this.mode === 'work') {
+      // standing still at a part or the generator until it is done (or cancelled)
+      if (this.s.work.has(this.a.id)) return { x: 0, y: 0 };
+      this.mode = 'idle';
+    }
+    if (this.mode === 'evac-wait' && this.s.match.evacAt === null) this.mode = 'idle';
     if (now >= this.nextThink) {
       this.think(now);
       this.nextThink = now + rand(...this.cfg.think);
@@ -203,7 +236,7 @@ export default class BotBrain {
       } else this.goal = { floor: t.floor(), x: t.x };
     }
     if (!this.goal) return { x: 0, y: 0 };
-    const precise = ['refill', 'meeting'].includes(this.mode);
+    const precise = ['refill', 'meeting', 'report', 'part', 'fit', 'breaker'].includes(this.mode);
     const nav = navigate(this.a, this.goal, precise ? 6 : 14);
     if (nav.arrived) this.arrive(now);
     return nav.arrived ? { x: 0, y: 0 } : nav;
@@ -219,6 +252,16 @@ export default class BotBrain {
       this.mode = 'idle';
       this.goal = null;
       this.s.callMeeting(this.a.id);
+    } else if (['report', 'part', 'fit', 'breaker'].includes(this.mode)) {
+      // use the station here (a body, a part, the generator, the breaker)
+      const st = this.s.stationFor(this.a);
+      const want = { report: 'report', part: 'pick', fit: 'fit', breaker: 'blackout' }[this.mode];
+      this.mode = 'idle';
+      this.goal = null;
+      if (st?.kind === want && this.s.useStation(this.a.id, st) && want !== 'report' && want !== 'blackout') this.mode = 'work';
+    } else if (this.mode === 'evac') {
+      this.mode = 'evac-wait';
+      this.goal = null;
     }
   }
 
@@ -239,14 +282,35 @@ export default class BotBrain {
       this.mode = 'idle';
       this.goal = null;
     }
-    if (['hunt', 'meeting'].includes(this.mode)) return;
+    if (ERRANDS.includes(this.mode)) return;
 
-    const seen = this.s.visibleActors(this.a, this.cfg.sight);
-    if (this.me.role === 'infected') {
-      // hunt while holding a Zombie card; hunger makes them reckless
+    const seen = this.s.visibleActors(this.a, this.s.sightOf(this));
+    const infected = this.me.role === 'infected';
+    // v3: the evac truck is close: humans head for the Entrance (zombies often go to block it)
+    if (m.evacAt !== null && m.evacAt - now < 30000 && this.s.roomOf(this.a) !== EVAC_ROOM && (!infected || Math.random() < 0.6)) {
+      return this.goTo('evac', { floor: EVAC_SPOT.floor, x: EVAC_SPOT.x + rand(-90, 90) });
+    }
+    // v3: a body nobody reported yet
+    const body = [...this.s.actors.values()].find((o) => {
+      const p = m.get(o.id);
+      return p.shot && !p.reported && o.floor() === this.a.floor() && Math.abs(o.x - this.a.x) < this.s.sightOf(this);
+    });
+    if (body && m.canReport(this.a.id, body.id, now).ok && Math.random() < (infected ? 0.25 : 0.7)) return this.goTo('report', { floor: body.floor(), x: body.x });
+    if (this.speakUp(now, seen)) return;
+
+    if (infected) {
+      // hunt while holding a Zombie card; hunger (and the dark) make them reckless
       const starving = m.isStarving(this.a.id, now);
+      const dark = m.isBlackout(now);
       const prey = seen.filter((o) => m.get(o.id).role === 'human' && !m.isRecovering(o.id, now) && this.s.canDuel(this.a.id, o.id));
-      if (prey.length && this.has('zombie') && (starving || (now > this.lurkUntil && Math.random() < this.cfg.hunt))) return this.hunt(prey);
+      if (prey.length && this.has('zombie') && (starving || dark || (now > this.lurkUntil && Math.random() < this.cfg.hunt))) return this.hunt(prey);
+      // v3: the one Blackout of the match, when holding a Zombie card to use in the dark
+      if (this.has('zombie') && m.canBlackout(this.a.id, now).ok && Math.random() < this.cfg.sabotage) return this.goTo('breaker', BREAKER);
+      // v3: grab a generator part and sit on it (humans can't fit it then)
+      if (!m.partCarried(this.a.id) && Math.random() < 0.04) {
+        const part = this.nearestPart();
+        if (part) return this.goTo('part', part.at);
+      }
       // put on a show: a fake duel with an ally while humans are watching
       const humansWatching = seen.some((o) => m.get(o.id).role === 'human');
       const allies = seen.filter((o) => m.get(o.id).role === 'infected' && this.s.canDuel(this.a.id, o.id));
@@ -257,6 +321,11 @@ export default class BotBrain {
         const strength = this.s.signStrength(o.id);
         if (strength > 0.3 && Math.random() < this.cfg.notice) this.suspect(o.id, strength * 0.4, `${o.name} keeps twitching, and I saw a green flicker.`);
       }
+      // v3: someone has carried a generator part for ages without fitting it
+      for (const o of seen) {
+        const part = m.partCarried(o.id);
+        if (part && now - part.pickedAt > 50000 && Math.random() < this.cfg.notice * 0.5) this.suspect(o.id, 0.5, `${o.name} has been carrying a generator part forever and never fitted it.`);
+      }
       // strong suspicion: call a meeting
       const top = this.topSuspect();
       if (top && this.sus(top) >= this.cfg.callNerve && m.canCallMeeting(this.a.id, now).ok && !this.s.meeting) return this.goTo('meeting', EMERGENCY_BUTTON);
@@ -266,10 +335,39 @@ export default class BotBrain {
       if (suspects.length) return this.hunt(suspects);
       const scary = seen.find((o) => this.sus(o.id) >= 2.5);
       if (scary && Math.random() < 0.5) return this.wander(scary);
+      // v3: Restore Power: fit a carried part, or go and get one
+      if (m.partCarried(this.a.id)) return this.goTo('fit', GENERATOR);
+      if (Math.random() < this.cfg.task) {
+        const part = this.nearestPart();
+        if (part) return this.goTo('part', part.at);
+      }
       const others = seen.filter((o) => this.s.canDuel(this.a.id, o.id) && this.sus(o.id) < 2);
       if (others.length && Math.random() < this.cfg.aggression) return this.hunt(others);
     }
     if (this.mode === 'idle' && now > this.idleUntil) this.wander();
+  }
+
+  /** Closest generator part lying on the floor (or null). */
+  nearestPart() {
+    const parts = this.s.match.parts.filter((q) => q.at && !q.fitted);
+    return parts.sort((p, q) => this.s.cost(this.a, p.at) - this.s.cost(this.a, q.at))[0] ?? null;
+  }
+
+  /** v3: emotes. Humans point at a suspect they can see; anyone waves now and then. Returns false (never takes the turn). */
+  speakUp(now, seen) {
+    if (now < this.nextEmoteAt) return false;
+    const human = this.human;
+    const suspect = human
+      ? seen.find((o) => this.sus(o.id) >= 2.5)
+      : Math.random() < 0.15 ? seen.find((o) => this.s.match.get(o.id).role === 'human') : null; // the infected frame someone now and then
+    if (suspect) {
+      this.s.emote(this.a.id, 'sus', suspect.id);
+      this.nextEmoteAt = now + rand(15000, 25000);
+    } else if (seen.length && Math.random() < 0.03) {
+      this.s.emote(this.a.id, 'hello');
+      this.nextEmoteAt = now + rand(20000, 40000);
+    }
+    return false;
   }
 
   hunt(list) {
@@ -323,6 +421,23 @@ export default class BotBrain {
     const number = Math.random() < this.cfg.smart ? m.bestNumber(id) : this.randomNumber();
     // nothing but specials left: a wasted Cure beats shooting someone I trust
     return number ?? m.firstOf(id, 'cure') ?? m.firstOf(id, 'gun');
+  }
+
+  /**
+   * v3: a bluff call for this duel (or null): name the card the opponent will play.
+   * Humans call a Zombie card on a strong suspect when they hold no Gun or Cure;
+   * the infected now and then call a Gun on a human who suspects nothing.
+   */
+  pickCall(oppId) {
+    const m = this.s.match;
+    if (!m.canCall(this.a.id)) return null;
+    const opp = m.get(oppId);
+    if (this.me.role === 'infected') {
+      if (opp.role === 'infected') return null;
+      return Math.random() < 0.06 * this.cfg.bluff ? 'gun' : null;
+    }
+    if (this.sus(oppId) >= 2.2 && !this.has('gun') && !this.has('cure') && Math.random() < this.cfg.bluff) return 'zombie';
+    return null;
   }
 
   randomNumber() {

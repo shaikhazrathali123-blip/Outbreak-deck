@@ -6,6 +6,9 @@ import HandUI from '../ui/HandUI.js';
 import ChallengeButton from '../ui/ChallengeButton.js';
 import ActionButton from '../ui/ActionButton.js';
 import Toasts from '../ui/Toasts.js';
+import { RULES, MODIFIERS } from '../../../shared/constants.js';
+import { EMOTES } from '../game/Session.js';
+import sfx from '../audio/Sfx.js';
 
 const REASONS = {
   exhausted: 'NO CARDS',
@@ -62,6 +65,9 @@ export default class SideUIScene extends Phaser.Scene {
     // match timer (top centre)
     this.timerBg = this.add.graphics();
     this.timer = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '18px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(3);
+    // v3: power / evac / blackout line under the timer
+    this.status = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffb04a' }).setOrigin(0.5).setLetterSpacing(3);
+    this.buildEmotes(session);
 
     // bottom prompt pill (ladders, refills)
     this.promptBg = this.add.graphics().setVisible(false);
@@ -92,12 +98,15 @@ export default class SideUIScene extends Phaser.Scene {
       ['room-changed', onRoom], ['hand-changed', onHand], ['toast', onToast], ['role-changed', onRole],
       ['duel-open', onDuel], ['chase', (c) => this.setChase(c)], ['you-died', (d) => this.showDeath(d)], ['challenge-request', onRequest], ['challenge-cancel', onCancel], ['match-over', onOver],
       ['meeting', (open) => this.onMeeting(open)], ['you-quarantined', () => this.showDeath({ quarantined: true })],
+      ['camera', (entries) => this.showCameras(entries)], ['last-stand', () => this.showBanner('LAST STAND', 'One bullet. You see them for 5 seconds.', '#ff4a5a')],
+      ['power', () => this.showBanner('POWER RESTORED', `Evac at the Entrance in ${RULES.evacTime / 1000}s`, '#ffd27a')],
+      ['blackout', (on) => on && this.showBanner('BLACKOUT', session.match.get(session.youId).role === 'infected' ? 'You see fine. They do not.' : 'Stay close to someone you trust.', '#b4ff3a')],
     ];
     for (const [ev, fn] of subs) gs.events.on(ev, fn);
     if (gs.currentRoom !== undefined) onRoom(gs.currentRoom);
     onHand();
 
-    this.events.on('map-open', (open) => this.setPlaying(!open));
+    this.events.on('map-open', (open) => (this.dead ? this.joystick.setEnabled(!open) : this.setPlaying(!open)));
     const onResize = (size) => this.layout(size.width, size.height);
     this.scale.on('resize', onResize);
     this.layout(this.scale.width, this.scale.height);
@@ -126,6 +135,8 @@ export default class SideUIScene extends Phaser.Scene {
     this.drawRole();
     this.drawScore();
     this.timer.setPosition(width / 2, 22);
+    this.status.setPosition(width / 2, 46);
+    this.layoutEmotes(width, height);
     this.timerBg.clear().fillStyle(UI.panel, 0.8).fillRoundedRect(width / 2 - 46, 8, 92, 28, 14).lineStyle(1, UI.line, 0.18).strokeRoundedRect(width / 2 - 46, 8, 92, 28, 14);
     this.hud.kicker.setY((height < 480 ? 44 : 54) + 12);
     this.hud.banner.setY((height < 480 ? 68 : 84) + 12);
@@ -150,6 +161,7 @@ export default class SideUIScene extends Phaser.Scene {
     let color = '#e9e4d6';
     if (!me.alive) [text, color] = [me.quarantined ? 'QUARANTINED' : 'OUT', '#8a909c'];
     else if (me.role === 'infected' && session.match.isStarving(me.id, now)) [text, color] = ['ZOMBIE  ·  STARVING', '#b4ff3a'];
+    else if (me.role === 'infected' && me.hungerAt === null) [text, color] = [`ZOMBIE  ·  FED  ·  CLAW IN ${clockText(me.nextZombieAt - now)}`, '#3ee67a'];
     else if (me.role === 'infected') [text, color] = [`ZOMBIE  ·  HUNGER ${clockText(me.hungerAt - now)}`, '#3ee67a'];
     else if (session.match.inCell(me.id, now)) [text, color] = [`HUMAN  ·  IN QUARANTINE ${clockText(me.cellUntil - now)}`, '#ff9a5a'];
     else if (session.match.isGagged(me.id, now)) [text, color] = [`HUMAN  ·  GAGGED ${clockText(me.gagUntil - now)}${session.match.isRecovering(me.id, now) ? '  ·  RECOVERING' : ''}`, '#9ab8d8'];
@@ -206,6 +218,79 @@ export default class SideUIScene extends Phaser.Scene {
     if (!this.dead) this.setPlaying(!open);
   }
 
+  // ------------------------------------------------------------ v3: emotes, cameras, banners
+  /** Four quick emotes on the right edge (keys 1–4). Bots nearby see them. */
+  buildEmotes(session) {
+    this.emoteButtons = Object.entries(EMOTES).map(([kind, text], i) => {
+      const c = this.add.container(0, 0).setDepth(60);
+      const g = this.add.graphics();
+      const color = kind === 'sus' ? 0xffb04a : kind === 'help' ? 0xff7a7a : 0xe9e4d6;
+      g.fillStyle(UI.panel, 0.85).fillRoundedRect(-44, -12, 88, 24, 12).lineStyle(1, color, 0.7).strokeRoundedRect(-44, -12, 88, 24, 12);
+      const t = this.add.text(0, 0, `${i + 1} ${text}`, { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: Phaser.Display.Color.IntegerToColor(color).rgba }).setOrigin(0.5).setLetterSpacing(1);
+      const z = this.add.zone(0, 0, 88, 24).setInteractive({ useHandCursor: true });
+      z.on('pointerdown', (p, lx, ly, e) => {
+        e?.stopPropagation();
+        session.emote(session.youId, kind);
+      });
+      c.add([g, t, z]);
+      return c;
+    });
+    ['ONE', 'TWO', 'THREE', 'FOUR'].forEach((k, i) =>
+      this.input.keyboard?.on(`keydown-${k}`, () => this.playing !== false && session.emote(session.youId, Object.keys(EMOTES)[i])),
+    );
+  }
+
+  layoutEmotes(width, height) {
+    const top = Math.max(150, height * 0.34);
+    this.emoteButtons.forEach((c, i) => c.setPosition(width - 58, top + i * 30));
+  }
+
+  /** Security cameras: the last room entries, for a few seconds. */
+  showCameras(entries) {
+    this.cameraPanel?.destroy();
+    const { width: W, height: H } = this.scale;
+    const c = this.add.container(W / 2, H * 0.3).setDepth(160);
+    const lines = entries.length ? entries : [{ name: '', room: 'Nobody moved yet', ago: null, color: '#c9ced8' }];
+    const h = 46 + lines.length * 20;
+    const g = this.add.graphics().fillStyle(UI.panel, 0.95).fillRoundedRect(-170, 0, 340, h, 12).lineStyle(1.5, 0x9ab8ff, 0.8).strokeRoundedRect(-170, 0, 340, h, 12);
+    c.add(g);
+    c.add(this.add.text(0, 16, 'SECURITY CAMERAS  ·  LAST ROOM ENTRIES', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#9ab8ff' }).setOrigin(0.5).setLetterSpacing(2));
+    lines.forEach((e, i) => {
+      const y = 38 + i * 20;
+      c.add(this.add.text(-150, y, e.name, { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: e.color }).setOrigin(0, 0.5));
+      c.add(this.add.text(-100, y, `→ ${e.room}`, { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: '#e9e4d6' }).setOrigin(0, 0.5));
+      if (e.ago !== null) c.add(this.add.text(150, y, `${e.ago}s ago`, { fontFamily: FONT, fontSize: '12px', fontStyle: '600', color: UI.dim }).setOrigin(1, 0.5));
+    });
+    c.setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, duration: 150 });
+    this.cameraPanel = c;
+    this.time.delayedCall(6000, () => c.active && this.tweens.add({ targets: c, alpha: 0, duration: 300, onComplete: () => c.destroy() }));
+  }
+
+  /** A big moment: LAST STAND, POWER RESTORED, BLACKOUT. */
+  showBanner(title, sub, color) {
+    const { width: W, height: H } = this.scale;
+    const t = this.add.text(W / 2, H * 0.3, title, { fontFamily: FONT, fontSize: H < 480 ? '36px' : '52px', fontStyle: '700', color })
+      .setOrigin(0.5).setLetterSpacing(10).setShadow(0, 0, color, 24, false, true).setDepth(170).setAlpha(0);
+    const s = this.add.text(W / 2, H * 0.3 + (H < 480 ? 32 : 42), sub, { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#e9e4d6' })
+      .setOrigin(0.5).setLetterSpacing(2).setDepth(170).setAlpha(0);
+    this.tweens.add({ targets: [t, s], alpha: 1, duration: 200 });
+    this.tweens.add({ targets: [t, s], alpha: 0, duration: 500, delay: 2600, onComplete: () => { t.destroy(); s.destroy(); } });
+  }
+
+  /** Power parts, the evac countdown or the blackout, under the timer. */
+  updateStatus(session) {
+    const m = session.match;
+    const now = session.clock();
+    let text = '';
+    let color = '#ffb04a';
+    if (m.isBlackout(now)) [text, color] = [`⚠ BLACKOUT ${Math.ceil((m.blackoutUntil - now) / 1000)}s`, '#b4ff3a'];
+    else if (m.evacAt !== null) [text, color] = [`EVAC IN ${clockText(m.evacAt - now)}  ·  ENTRANCE`, '#ffd27a'];
+    else if (m.powerAt !== null) [text, color] = ['POWER ON  ·  THE EVAC HAS GONE', '#8f96a3'];
+    else text = `⚡ POWER ${m.parts.filter((p) => p.fitted).length}/${m.parts.length}  ·  FIT PARTS AT THE REACTOR`;
+    if (this.status.text !== text) this.status.setText(text).setColor(color);
+  }
+
   /** Big card at the start telling you your secret role. */
   showRoleIntro(session) {
     const { width: W, height: H } = this.scale;
@@ -215,17 +300,20 @@ export default class SideUIScene extends Phaser.Scene {
     const allies = session.match.list().filter((p) => p.role === 'infected' && p.id !== session.youId).map((p) => p.name);
     const lines = infected
       ? ['Bite humans with your ZOMBIE card: they turn at once. Outnumber them when the timer ends. Mind your HUNGER.', 'Beware of Guns and Cures.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
-      : ['Shoot (GUN), cure (CURE) or vote out every zombie, or outnumber them when the timer ends.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Emergency Button in the Central Hall.`; })()];
+      : ['Shoot, cure or vote out every zombie, or restore the power (4 parts) and escape in the evac truck.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Emergency Button in the Central Hall.`; })()];
+    if (infected) lines[1] += '  Cut the power once at the BREAKER (Server Room).';
+    if (session.modifier) lines.push(`TODAY: ${MODIFIERS[session.modifier].name.toUpperCase()}  ·  ${MODIFIERS[session.modifier].text}`);
     const items = [];
     const bg = this.add.rectangle(0, 0, W, H, 0x020308, 0.78).setOrigin(0).setInteractive();
     items.push(bg);
+    items.push(this.add.text(W / 2, H * 0.36 - 34, 'NIGHT SHIFT  ·  STORM LOCKDOWN', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: '#7fb8b0' }).setOrigin(0.5).setLetterSpacing(6));
     items.push(this.add.text(W / 2, H * 0.36, 'YOU ARE P1  ·  YOUR ROLE', { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(8));
     items.push(
       this.add.text(W / 2, H * 0.36 + 44, infected ? 'INFECTED' : 'HUMAN', { fontFamily: FONT, fontSize: H < 480 ? '40px' : '56px', fontStyle: '700', color })
         .setOrigin(0.5).setLetterSpacing(12).setShadow(0, 0, color, 24, false, true),
     );
     lines.forEach((l, i) => items.push(this.add.text(W / 2, H * 0.36 + 96 + i * 24, l, { fontFamily: FONT, fontSize: '15px', fontStyle: '600', color: '#c9ced8' }).setOrigin(0.5).setLetterSpacing(1)));
-    items.push(this.add.text(W / 2, H * 0.36 + 160, 'TAP TO BEGIN', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: UI.dim }).setOrigin(0.5).setLetterSpacing(4));
+    items.push(this.add.text(W / 2, H * 0.36 + 112 + lines.length * 24, 'TAP TO BEGIN', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: UI.dim }).setOrigin(0.5).setLetterSpacing(4));
     for (const it of items) it.setDepth(200);
     const close = () => {
       if (!items[0].active) return;
@@ -309,6 +397,8 @@ export default class SideUIScene extends Phaser.Scene {
       this.chaseText.setText(`RUN!  ${left}`);
       this.chaseSub.setText(`${c.name} IS CHASING YOU  ·  CLIMB A LADDER TO LOSE THEM`);
       const beat = (time % 800) / 800;
+      if (beat < this.lastBeat) sfx.play('heartbeat');
+      this.lastBeat = beat;
       const pulse = Math.max(0, 1 - Math.abs(beat - 0.1) * 9) + 0.7 * Math.max(0, 1 - Math.abs(beat - 0.32) * 9);
       this.danger.setAlpha(0.22 + 0.45 * pulse);
       this.chaseText.setScale(1 + 0.06 * pulse);
@@ -335,10 +425,13 @@ export default class SideUIScene extends Phaser.Scene {
     ];
     for (const it of items) it.setDepth(250);
     this.time.delayedCall(3500, () => this.tweens.add({ targets: items, alpha: 0, duration: 600 }));
-    const g = this.add.graphics().setDepth(250).fillStyle(0x30343d, 0.95).fillRoundedRect(W / 2 - 110, 50, 220, 34, 17);
-    const t = this.add.text(W / 2, 67, 'YOU ARE OUT  ·  LEAVE (L)', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#e9e4d6' }).setOrigin(0.5).setLetterSpacing(2).setDepth(251);
+    // v3: you walk on as a ghost: every room is lit for you, nobody can hear you
+    this.joystick.setEnabled(true);
+    this.time.delayedCall(3800, () => this.toasts.show('You are a GHOST now: walk anywhere and watch. Nobody can see or hear you.', '#9ab8ff', 5000));
+    const g = this.add.graphics().setDepth(250).fillStyle(0x30343d, 0.95).fillRoundedRect(W / 2 - 130, 58, 260, 30, 15);
+    const t = this.add.text(W / 2, 73, 'GHOST  ·  YOU ARE OUT  ·  LEAVE (L)', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#e9e4d6' }).setOrigin(0.5).setLetterSpacing(2).setDepth(251);
     const leave = () => this.gameScene.scene.start('MenuScene');
-    this.add.zone(W / 2, 67, 220, 34).setInteractive({ useHandCursor: true }).setDepth(252).on('pointerup', leave);
+    this.add.zone(W / 2, 73, 260, 30).setInteractive({ useHandCursor: true }).setDepth(252).on('pointerup', leave);
     this.input.keyboard?.once('keydown-L', leave);
     this.deathChip = [g, t];
   }
@@ -349,7 +442,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.hud.setVisible(on);
     this.hand.setVisible(on);
     this.joystick.setEnabled(on);
-    for (const o of [this.role, this.roleBg, this.scoreText, this.scoreBg]) o.setVisible(on);
+    for (const o of [this.role, this.roleBg, this.scoreText, this.scoreBg, ...this.emoteButtons]) o.setVisible(on);
     if (!on) {
       this.challenge.set(null);
       this.action.set(null);
@@ -386,10 +479,13 @@ export default class SideUIScene extends Phaser.Scene {
     const session = gs.session;
 
     const left = Math.ceil(session.timeLeft() / 1000);
+    if (left !== this.lastLeft && left <= 10 && left > 0 && !session.meeting && !session.over) sfx.play('tick');
+    this.lastLeft = left;
     this.timer.setText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`).setColor(left <= 30 ? '#ff4a5a' : '#ffffff');
     this.updateChase(gs.now(), time);
     this.updateRoleChip();
     this.updateScore();
+    this.updateStatus(session);
     if (this.playing === false || gs.mapOpen || session.over || session.meeting) return;
     this.action.set(session.yourAction());
 
@@ -409,6 +505,8 @@ export default class SideUIScene extends Phaser.Scene {
     if (gs.match.inCell(me.id, now)) this.showPrompt(`IN QUARANTINE  ${Math.ceil((me.cellUntil - now) / 1000)}  ·  GAGGED`);
     else if (now < me.stunnedUntil) this.showPrompt(`STUNNED  ${Math.ceil((me.stunnedUntil - now) / 1000)}`);
     else if (gs.refillHint) this.showPrompt(gs.refillHint);
+    else if (session.work.has(me.id)) this.showPrompt(session.work.get(me.id).kind === 'fit' ? 'FITTING THE PART…  STAND STILL' : 'PICKING UP THE PART…  STAND STILL');
+    else if (gs.match.partCarried(me.id) && !ladder) this.showPrompt('CARRYING A POWER PART  ·  FIT IT AT THE GENERATOR (REACTOR, BASEMENT)');
     else if (ladder && !gs.busy) {
       const up = ladder.lower === gs.state.floor;
       this.showPrompt(up ? `▲  ${touch ? 'PUSH UP' : 'W'}  TO CLIMB` : `▼  ${touch ? 'PUSH DOWN' : 'S'}  TO CLIMB DOWN`);

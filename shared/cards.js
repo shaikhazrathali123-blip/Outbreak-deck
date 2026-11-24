@@ -35,12 +35,12 @@ export const cureCard = () => ({ id: newId(), kind: 'cure' });
  * `copies` times so big matches never run dry. Zombie cards are never in
  * the deck: only infected players grow them.
  */
-export function createDeck(rng, copies = 1) {
+export function createDeck(rng, copies = 1, { guns = RULES.deckGuns, cures = RULES.deckCures } = {}) {
   const cards = [];
   for (let c = 0; c < copies; c++) {
     for (let v = 1; v <= 9; v++) for (let k = 0; k < 4; k++) cards.push(numberCard(v));
-    for (let k = 0; k < RULES.deckGuns; k++) cards.push(gunCard());
-    for (let k = 0; k < RULES.deckCures; k++) cards.push(cureCard());
+    for (let k = 0; k < guns; k++) cards.push(gunCard());
+    for (let k = 0; k < cures; k++) cards.push(cureCard());
   }
   return shuffle(cards, rng);
 }

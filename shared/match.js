@@ -3,8 +3,8 @@
 // secret Gun hand-offs, hunger, meetings and votes, cooldowns, refills and win
 // conditions. Pure logic with no rendering, so the server can run it in
 // Phase 4. Times are passed in (ms).
-import { RULES, POINTS, infectedCount } from './constants.js';
-import { createRng, createDeck, decksFor, shuffle, isHumanOnly, zombieCard } from './cards.js';
+import { RULES, POINTS, infectedCount, lobbyRules } from './constants.js';
+import { createRng, createDeck, decksFor, shuffle, isHumanOnly, zombieCard, gunCard } from './cards.js';
 import { resolveDuel } from './duel.js';
 
 const CLUES = [
@@ -45,13 +45,24 @@ export class Match {
    * @param {{id:string,name:string,color:string,role:'human'|'infected'}[]} o.players
    * @param {number} [o.seed]
    */
-  constructor({ players, seed = Date.now(), handSize = RULES.handSize, now = 0 }) {
+  constructor({ players, seed = Date.now(), handSize = RULES.handSize, now = 0, rules = {} }) {
     this.rng = createRng(seed);
-    this.deck = createDeck(this.rng, decksFor(players.length));
+    // v3: balance by lobby size (lobbyRules), then the match modifier's overrides on top
+    this.rules = { ...RULES, ...lobbyRules(players.length), ...rules };
+    this.deck = createDeck(this.rng, decksFor(players.length), { guns: this.rules.deckGuns, cures: this.rules.deckCures });
     this.discard = [];
     this.players = new Map();
     this.meetingReadyAt = now + RULES.meetingFirstDelay;
     this.time = now; // the latest match time seen (tick / duel): the time bonus counts up to it
+    this.accused = new Set(); // v3: everyone named in a meeting accusation (zombies never named earn the stealth bonus)
+    this.parts = []; // v3: generator parts (setupParts)
+    this.powerAt = null; // when the power came back (all parts fitted)
+    this.evacAt = null; // when the evac truck reaches the Entrance
+    this.blackoutsLeft = RULES.blackouts;
+    this.blackoutUntil = 0;
+    this.blackoutReadyAt = now + RULES.blackoutFirstDelay;
+    this.lastStandFor = null; // the last human, once Last Stand fired
+    this.finished = false; // end-of-match bonuses paid
     for (const p of players) {
       const player = {
         ...p,
@@ -62,22 +73,37 @@ export class Match {
         cooldownUntil: 0,
         stunnedUntil: 0,
         infectedAt: p.role === 'infected' ? now : null, // when they turned (infection signs grow from here)
-        hungerAt: p.role === 'infected' ? now + RULES.hunger : null, // starving from this time on
+        // starving from this time on; only runs while holding a Zombie card (null = no card, not hungry)
+        hungerAt: p.role === 'infected' ? now + RULES.hunger : null,
         starving: false,
         nextGrowlAt: 0,
         cellUntil: 0, // Cure user: in the quarantine cell until then (temporary)
         gagUntil: 0, // no quick-chat or voting until then
         recoverUntil: 0, // freshly cured: can't be bitten until then
         meetingsLeft: RULES.meetingsPerPlayer,
+        callsLeft: RULES.callsPerPlayer, // v3: bluff calls left
+        reported: false, // v3: this body was reported (a shot player)
         nextZombieAt: 0,
         startedInfected: p.role === 'infected',
-        stats: { duels: 0, won: 0, lost: 0, infections: 0, kills: 0, cures: 0, timesCured: 0 },
+        stats: { duels: 0, won: 0, lost: 0, infections: 0, kills: 0, cures: 0, timesCured: 0, timesBitten: 0 },
+        earned: {}, // banked points by reason: { 'shot-zombie': { count, points }, ... } (results screen)
+        finalParts: null, // the score breakdown, frozen with finalScore
+        shotBy: null,
         bank: 0, // banked points (shots, bites, wasted Cures); see score()
         finalScore: null, // frozen when shot or voted out
         roleSince: now, // the time bonus counts from here; reset when the role changes
       };
       this.players.set(p.id, player);
-      this.deal(player, handSize);
+    }
+    // 40% of the humans start armed: a Gun from the deck (a new one if the deck has none left)
+    const humans = shuffle(this.list().filter((p) => p.role === 'human'), this.rng);
+    this.armed = new Set(humans.slice(0, Math.round(humans.length * Math.min(1, this.rules.startGunShare))).map((p) => p.id));
+    for (const player of this.list()) {
+      if (handSize > 0 && this.armed.has(player.id)) {
+        const i = this.deck.findIndex((c) => c.kind === 'gun');
+        player.hand.push(i >= 0 ? this.deck.splice(i, 1)[0] : gunCard());
+        this.deal(player, handSize - 1);
+      } else this.deal(player, handSize, (c) => c.kind !== 'gun'); // the rest start without a Gun
       if (player.role === 'infected') this.growZombies(player, RULES.zombieStart);
     }
   }
@@ -131,9 +157,11 @@ export class Match {
   }
 
   // ------------------------------------------------------------ score (secret)
-  /** Points for the cards in a hand: a number is worth its number, Gun 20, Cure 30, Zombie 0. */
+  /** Points for the cards in a hand: a number is worth its number, a Gun 10 per bullet left, Cure 30, Zombie 0. */
   handPoints(p) {
-    return p.hand.reduce((sum, c) => sum + (c.kind === 'number' ? c.value : POINTS[c.kind] ?? 0), 0);
+    const value = (c) =>
+      c.kind === 'number' ? c.value : c.kind === 'gun' ? (c.bullets ?? RULES.gunBullets) * POINTS.perBullet : POINTS[c.kind] ?? 0;
+    return p.hand.reduce((sum, c) => sum + value(c), 0);
   }
 
   /** A player's score: hand points + banked points (frozen once they are shot or voted out). */
@@ -148,10 +176,31 @@ export class Match {
     return Math.floor(Math.max(0, this.time - p.roleSince) / 60000) * POINTS.perMinute;
   }
 
-  /** Bank points and report them (only the player's own screen ever shows this). */
-  award(p, amount, reason, effects) {
+  /**
+   * Bank points and report them (only the player's own screen ever shows this).
+   * `shown` = the change to their score, when a card leaving the hand is part of it.
+   */
+  award(p, amount, reason, effects, shown = amount) {
     p.bank += amount;
-    effects.push({ type: 'points', player: p.id, amount, reason });
+    const tally = (p.earned[reason] ??= { count: 0, points: 0 });
+    tally.count++;
+    tally.points += amount;
+    effects.push({ type: 'points', player: p.id, amount: shown, reason });
+  }
+
+  /** Where a score comes from: card points in hand + time bonus + banked points by reason. Adds up to score(). */
+  scoreParts(id) {
+    const p = this.get(id);
+    if (p.finalParts) return p.finalParts;
+    const earned = Object.fromEntries(Object.entries(p.earned).map(([k, v]) => [k, { ...v }]));
+    const parts = { cards: this.handPoints(p), timeBonus: this.timeBonus(id), earned };
+    return { ...parts, total: parts.cards + parts.timeBonus + p.bank };
+  }
+
+  /** Freeze the score (and its breakdown) when a player leaves the match. */
+  freezeScore(p) {
+    p.finalParts = this.scoreParts(p.id);
+    p.finalScore = p.finalParts.total;
   }
 
   /** Highest score first (ties share a place). */
@@ -180,14 +229,14 @@ export class Match {
     return p.hand.filter(isHumanOnly).length < RULES.maxSpecials;
   }
 
-  /** Give `p` up to `n` cards they may hold; anything else goes to the discard pile. */
-  deal(p, n) {
+  /** Give `p` up to `n` cards they may hold (and `ok` lets through); anything else goes to the discard pile. */
+  deal(p, n, ok = () => true) {
     const got = [];
     let guard = 0;
     while (got.length < n && guard++ < 200) {
       const [card] = this.draw(1);
       if (!card) break;
-      if (this.allowed(p, card)) {
+      if (this.allowed(p, card) && ok(card)) {
         p.hand.push(card);
         got.push(card);
       } else this.trash(card);
@@ -209,9 +258,14 @@ export class Match {
     for (let i = 0; i < n && this.zombieCount(p) < RULES.zombieMax; i++) p.hand.push(zombieCard());
   }
 
-  /** The Zombie card was used (or the player just turned): the next one grows 40s from now. */
+  /** The Zombie card was used (or the player just turned): the next one grows zombieRegen() from now. */
   startZombieRegrow(p, now) {
-    p.nextZombieAt = now + RULES.zombieRegen;
+    p.nextZombieAt = now + this.zombieRegen();
+  }
+
+  /** v3: one regrow time per lobby size (lobbyRules), changed only by a match modifier. */
+  zombieRegen() {
+    return this.rules.zombieRegen;
   }
 
   /**
@@ -231,6 +285,7 @@ export class Match {
       // the timer only runs while the hand has no Zombie card (it starts when the card is used)
       if (this.zombieCount(p) < RULES.zombieMax && now >= p.nextZombieAt) {
         this.growZombies(p, 1);
+        p.hungerAt = now + RULES.hunger; // the hunger clock starts once they can bite again
         events.push({ type: 'zombie-grew', player: p.id });
       }
       const starving = this.isStarving(p.id, now);
@@ -296,17 +351,18 @@ export class Match {
    */
   bite(p, by, now) {
     by.stats.infections++;
-    by.hungerAt = now + RULES.hunger;
+    p.stats.timesBitten++;
+    by.hungerAt = null; // fed: no hunger until the next Zombie card grows
     by.starving = false;
     const lost = p.hand.filter(isHumanOnly);
     p.hand = p.hand.filter((c) => !isHumanOnly(c));
     p.role = 'infected';
     p.roleSince = now; // the time bonus earned as a human is gone
     p.infectedAt = now;
-    p.hungerAt = now + RULES.hunger;
+    p.hungerAt = null; // their hunger starts when their first Zombie card grows
     p.starving = false;
     p.recoverUntil = 0;
-    this.startZombieRegrow(p, now); // a new zombie grows their first Zombie card 40s after turning
+    this.startZombieRegrow(p, now); // a new zombie grows their first Zombie card 75s (+20s per other zombie) after turning
     return lost.map((card) => {
       const takers = this.list().filter((q) => q.alive && q.role === 'human' && q.id !== p.id && this.allowed(q, card));
       const to = takers.length ? takers[Math.floor(this.rng() * takers.length)] : null;
@@ -338,7 +394,8 @@ export class Match {
   }
 
   kill(p, by) {
-    p.finalScore = this.score(p.id); // a shot player keeps the score they had
+    this.freezeScore(p); // a shot player keeps the score they had
+    p.shotBy = by.id;
     p.alive = false;
     p.shot = true;
     by.stats.kills++;
@@ -361,7 +418,7 @@ export class Match {
    *             on a number: a zombie is cured (but wins the duel), a human just wins (Cure wasted)
    *   two zombies = a fake duel: both keep their cards
    */
-  settleDuel(aId, bId, cardIdA, cardIdB, now) {
+  settleDuel(aId, bId, cardIdA, cardIdB, now, calls = {}) {
     this.time = Math.max(this.time, now);
     const check = this.canChallenge(aId, bId, now);
     if (!check.ok) throw new Error(`Duel not allowed: ${check.reason}`);
@@ -386,6 +443,8 @@ export class Match {
       out.effects.push({ type: 'fake' });
       return out;
     }
+    // v3: bluff calls. A right call cancels the named card and wins the duel; a wrong one costs points.
+    if (this.resolveCalls(a, b, cardA, cardB, calls, out, now, giveBack)) return out;
     if (!result.winner) {
       giveBack(a, cardA);
       giveBack(b, cardB);
@@ -404,16 +463,17 @@ export class Match {
         this.spendBullet(winner, wCard);
         this.trash(lCard);
         this.kill(loser, winner);
-        winner.stunnedUntil = now + RULES.shotStun;
+        if (RULES.shotStun > 0) winner.stunnedUntil = now + RULES.shotStun;
         out.effects.push({ type: 'killed', player: loser.id, by: winner.id, until: winner.stunnedUntil });
-        this.award(winner, hitZombie ? POINTS.shotZombie : POINTS.shotHuman, hitZombie ? 'shot-zombie' : 'shot-human', out.effects);
+        // the spent bullet leaves the Gun's points: a hit on a zombie banks it back (+40 net), a human hit does not (-20 net)
+        if (hitZombie) this.award(winner, POINTS.perBullet + POINTS.shotZombie, 'shot-zombie', out.effects, POINTS.shotZombie);
+        else this.award(winner, POINTS.shotHuman, 'shot-human', out.effects, POINTS.shotHuman - POINTS.perBullet);
         break;
       }
       case 'infect': {
         // the number card goes back; the Zombie card is what hurts.
         // A Cure in the hand does NOT protect you: you can't use a Cure on yourself.
         loser.hand.push(lCard);
-        this.startZombieRegrow(winner, now); // one bite per 40s
         if (this.isRecovering(loser.id, now)) {
           out.effects.push({ type: 'immune', player: loser.id, by: winner.id });
         } else {
@@ -422,6 +482,7 @@ export class Match {
           this.award(winner, POINTS.bite, 'bite', out.effects);
           for (const m of moved) out.effects.push({ type: 'handed', card: m.card, from: loser.id, to: m.to });
         }
+        this.startZombieRegrow(winner, now); // after the bite: the regrow counts the new zombie too
         break; // the Zombie card is used up
       }
       case 'cure': {
@@ -451,6 +512,7 @@ export class Match {
       default: // number vs number
         winner.hand.push(wCard, lCard);
         out.effects.push({ type: 'card-taken', from: loser.id, to: winner.id, card: lCard });
+        this.award(winner, POINTS.numberWin, 'number-win', out.effects);
         if (winner.role === 'human' && loser.role === 'infected') {
           loser.stunnedUntil = now + RULES.stunTime;
           out.effects.push({ type: 'stunned', player: loser.id, until: loser.stunnedUntil });
@@ -460,6 +522,57 @@ export class Match {
         }
     }
     return out;
+  }
+
+  canCall(id) {
+    return this.get(id).callsLeft > 0;
+  }
+
+  /**
+   * Bluff calls (v3): `calls` maps player id -> 'zombie' | 'gun' | 'cure', the card they say the
+   * other one is playing. Every call is used up. A right call cancels that card (a Zombie card is
+   * spent, a Gun loses a bullet, a Cure is thrown away) and the caller wins the duel; two right
+   * calls cancel both cards. A wrong call costs points and the duel plays out as normal.
+   * Two infected = a fake duel: calls are ignored (and not used up).
+   * @returns {boolean} true when a right call decided the duel
+   */
+  resolveCalls(a, b, cardA, cardB, calls, out, now, giveBack) {
+    const right = [];
+    for (const [me, opp, oppCard] of [[a, b, cardB], [b, a, cardA]]) {
+      const kind = calls[me.id];
+      if (!kind || me.callsLeft <= 0) continue;
+      me.callsLeft--;
+      if (oppCard.kind === kind) right.push([me, opp, oppCard]);
+      else {
+        out.effects.push({ type: 'call-wrong', player: me.id, called: kind });
+        this.award(me, POINTS.callWrong, 'call-wrong', out.effects);
+      }
+    }
+    if (!right.length) return false;
+    const cancel = (owner, card) => {
+      if (card.kind === 'zombie') {
+        owner.hungerAt = null; // no card, no hunger until the next one grows
+        owner.starving = false;
+        this.startZombieRegrow(owner, now);
+      }
+      else if (card.kind === 'gun') this.spendBullet(owner, card);
+      else this.trash(card);
+    };
+    for (const [me, opp, oppCard] of right) {
+      cancel(opp, oppCard);
+      out.effects.push({ type: 'called', player: me.id, against: opp.id, card: oppCard.kind });
+      this.award(me, POINTS.callRight, 'call-right', out.effects);
+    }
+    if (right.length === 1) {
+      const [me, opp] = right[0];
+      giveBack(me, me === a ? cardA : cardB);
+      out.winnerId = me.id;
+      out.loserId = opp.id;
+      me.stats.won++;
+      opp.stats.lost++;
+      out.result = { ...out.result, winner: me === a ? 'a' : 'b', kind: 'called' };
+    } else out.result = { ...out.result, winner: null, kind: 'called' };
+    return true;
   }
 
   clueText() {
@@ -489,6 +602,150 @@ export class Match {
     this.get(id).meetingsLeft--;
   }
 
+  /** v3: a shot body can be reported once; it calls a meeting without using your Emergency Button. */
+  canReport(id, bodyId, now) {
+    const p = this.get(id);
+    const body = this.get(bodyId);
+    if (!p.alive) return { ok: false, reason: 'dead' };
+    if (this.inCell(id, now)) return { ok: false, reason: 'in-cell' };
+    if (!body.shot || body.reported) return { ok: false, reason: 'no-body' };
+    if (now < this.meetingReadyAt) return { ok: false, reason: 'cooldown', wait: this.meetingReadyAt - now };
+    return { ok: true };
+  }
+
+  report(id, bodyId, now) {
+    const check = this.canReport(id, bodyId, now);
+    if (!check.ok) throw new Error(`Report not allowed: ${check.reason}`);
+    this.get(bodyId).reported = true;
+  }
+
+  /** v3: someone was accused in a meeting (zombies never accused earn the stealth bonus). */
+  noteAccused(id) {
+    if (this.players.has(id)) this.accused.add(id);
+  }
+
+  /**
+   * v3: points for the voters once a player is voted out: +20 when it helped your team
+   * (a human voting out a zombie, a zombie voting out a human), -10 when it hurt it.
+   * Call before quarantine() (it freezes the target's score). `votes` maps voter -> target.
+   */
+  rewardVoters(outId, votes) {
+    const effects = [];
+    const outRole = this.get(outId).role;
+    for (const [voter, target] of votes) {
+      if (target !== outId || voter === outId || !this.get(voter).alive) continue;
+      const v = this.get(voter);
+      const good = (v.role === 'human') === (outRole === 'infected');
+      this.award(v, good ? POINTS.voteZombie : POINTS.voteHuman, good ? 'vote-right' : 'vote-wrong', effects);
+    }
+    return effects;
+  }
+
+  // ------------------------------------------------------------ v3: Last Stand
+  /**
+   * Once per match, when exactly one human is left (and a zombie): that human gets a
+   * 1-bullet Gun (a bullet more if they already hold one; allowed next to a Cure).
+   * @returns {string|null} the last human's id when it fires
+   */
+  checkLastStand() {
+    if (this.lastStandFor) return null;
+    const humans = this.living('human');
+    if (humans.length !== 1 || !this.living('infected').length) return null;
+    const p = humans[0];
+    this.lastStandFor = p.id;
+    const gun = p.hand.find((c) => c.kind === 'gun');
+    if (gun) gun.bullets = (gun.bullets ?? RULES.gunBullets) + 1;
+    else p.hand.push(gunCard(1));
+    return p.id;
+  }
+
+  // ------------------------------------------------------------ v3: Restore Power
+  /** Hide the generator parts: `spots` = places on the map ({ floor, x }); RULES.powerParts of them are used. */
+  setupParts(spots) {
+    this.parts = shuffle(spots, this.rng)
+      .slice(0, RULES.powerParts)
+      .map((spot, i) => ({ id: `part${i + 1}`, home: { ...spot }, at: { ...spot }, carrier: null, fitted: false }));
+  }
+
+  partCarried(id) {
+    return this.parts.find((q) => q.carrier === id) ?? null;
+  }
+
+  /** Pick up a part lying on the floor (one at a time; anyone can, zombies too: they can hide it). */
+  pickPart(id, partId, now = this.time) {
+    const p = this.get(id);
+    const part = this.parts.find((q) => q.id === partId);
+    if (!p.alive || !part || part.fitted || part.carrier || this.partCarried(id)) return false;
+    part.carrier = id;
+    part.pickedAt = now; // carrying one for ages without fitting it looks suspicious
+    part.at = null;
+    return true;
+  }
+
+  /** Fit the carried part into the generator. All fitted = POWER RESTORED: the evac comes in RULES.evacTime. */
+  fitPart(id, now) {
+    const p = this.get(id);
+    const part = this.partCarried(id);
+    if (!p.alive || !part) return null;
+    part.carrier = null;
+    part.fitted = true;
+    const effects = [];
+    this.award(p, POINTS.part, 'part', effects);
+    const restored = this.parts.every((q) => q.fitted);
+    if (restored) {
+      this.powerAt = now;
+      this.evacAt = now + RULES.evacTime;
+    }
+    return { effects, restored, left: this.parts.filter((q) => !q.fitted).length };
+  }
+
+  /** A carrier left: the part drops where they stood (shot), or goes back home (voted out). */
+  dropPart(id, where = null) {
+    const part = this.partCarried(id);
+    if (!part) return null;
+    part.carrier = null;
+    part.at = where ? { ...where } : { ...part.home };
+    return part;
+  }
+
+  // ------------------------------------------------------------ v3: Blackout
+  canBlackout(id, now) {
+    const p = this.get(id);
+    if (!p.alive || p.role !== 'infected') return { ok: false, reason: 'human' };
+    if (this.inCell(id, now)) return { ok: false, reason: 'in-cell' };
+    if (this.blackoutsLeft <= 0) return { ok: false, reason: 'used' };
+    if (now < this.blackoutReadyAt) return { ok: false, reason: 'cooldown', wait: this.blackoutReadyAt - now };
+    return { ok: true };
+  }
+
+  blackout(id, now) {
+    const check = this.canBlackout(id, now);
+    if (!check.ok) throw new Error(`Blackout not allowed: ${check.reason}`);
+    this.blackoutsLeft--;
+    this.blackoutUntil = now + RULES.blackoutTime;
+  }
+
+  isBlackout(now) {
+    return now < this.blackoutUntil;
+  }
+
+  // ------------------------------------------------------------ v3: end of match
+  /**
+   * Bonuses paid once when the match ends: stealth (zombies still in, never accused) and
+   * Last Stand (the last human made it to the end). `reason` = how it ended.
+   */
+  finish(reason) {
+    if (this.finished) return [];
+    this.finished = true;
+    const effects = [];
+    for (const p of this.living('infected')) if (!this.accused.has(p.id)) this.award(p, POINTS.stealth, 'stealth', effects);
+    const humans = this.living('human');
+    if (this.lastStandFor && humans.length === 1 && humans[0].id === this.lastStandFor && (reason === 'time' || reason === 'evac')) {
+      this.award(humans[0], POINTS.lastStand, 'last-stand', effects);
+    }
+    return effects;
+  }
+
   /** Who may vote / speak in a meeting: in the match and not gagged. */
   canVote(id, now) {
     const p = this.get(id);
@@ -515,12 +772,16 @@ export class Match {
       if (p.infectedAt !== null) p.infectedAt += ms; // signs keep the strength they had
       p.roleSince += ms; // the time bonus does not grow during meetings
     }
+    this.evacAt = later(this.evacAt);
+    for (const part of this.parts) if (part.carrier) part.pickedAt = later(part.pickedAt);
+    this.blackoutUntil = later(this.blackoutUntil);
+    this.blackoutReadyAt = later(this.blackoutReadyAt);
   }
 
   /** Voted out: sent to the Quarantine Cell for good. Out of the match, role kept secret. */
   quarantine(id) {
     const p = this.get(id);
-    p.finalScore = this.score(id); // a voted-out player keeps the score they had
+    this.freezeScore(p); // a voted-out player keeps the score they had
     p.alive = false;
     p.quarantined = true;
     this.trash(...p.hand.splice(0));

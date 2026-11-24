@@ -1,6 +1,6 @@
 # Outbreak Deck: notes for Claude Code
 
-The rulebook is GAME_GUIDE.txt (v2.3): the code follows it, and it wins over README.md if they disagree.
+The rulebook is GAME_GUIDE.txt (v3.0): the code follows it, and it wins over README.md if they disagree.
 The rest of the design lives in README.md (rooms, events, phases). Read both before adding a feature.
 This file only gives a short summary and the current state of the code.
 
@@ -9,25 +9,32 @@ This file only gives a short summary and the current state of the code.
 - Humans vs. hidden Infected. Walk up to a player and challenge them: they ACCEPT (card duel) or RUN
   (a chase: the challenger has 8s to touch them, which forces the duel).
 - Only four card kinds (keep it that simple): numbers 1–9 (higher wins), ZOMBIE (infected only: beats any
-  number and BITES: the loser turns AT ONCE; ONE Zombie card max, the next grows 40s after it is used
-  (`startZombieRegrow`; new zombies wait 40s for their first)), GUN (humans only, 2 bullets:
-  kills whoever it is played on, human or zombie; every shot announced without the target's role; shooter
-  stunned 8s), CURE (humans only: only works PLAYED on a zombie,
+  number and BITES: the loser turns AT ONCE; ONE Zombie card max, the next grows one fixed time per lobby size after it is used
+  (`startZombieRegrow` / `zombieRegen()` = `match.rules.zombieRegen` from `lobbyRules()`; new zombies wait the same for their first)), GUN (humans only, 2 bullets:
+  kills whoever it is played on, human or zombie; `lobbyRules().startGunShare` of the humans start with one (`match.armed`); every shot announced without the target's role;
+  no shot stun since v3: `RULES.shotStun` 0), CURE (humans only: only works PLAYED on a zombie,
   wasted on a human; it never protects its holder: you can't cure yourself). A human holds ONE of them at most:
-  a Gun OR a Cure (`RULES.maxSpecials`). Curing a zombie sends the Cure user to the quarantine cell for 60s (gagged, frozen,
-  can't be voted out); the cured player is gagged 60s and recovering 20s (can't be bitten).
+  a Gun OR a Cure (`RULES.maxSpecials`). Curing a zombie sends the Cure user to the quarantine cell for 30s (gagged, frozen,
+  can't be voted out); the cured player is gagged 30s and recovering 20s (can't be bitten).
 - A bitten human's Gun or Cure goes secretly to a random human holding neither (or back to the supply).
-- Infected must bite every 60s or start STARVING (growl + a 2.5s green flare every 40s; infection signs are
+- Hunger only runs while a zombie holds its Zombie card (`hungerAt` is null without one; set when the card grows): use it within 20s or start STARVING (growl + a 2.5s green flare every 20s; infection signs are
   kept subtle on purpose); two infected get a fake duel (both keep cards); Emergency Button in the Central
   Hall calls a meeting (30s quick chat, 15s vote, most votes = Quarantine Cell, role kept secret; the match
   clock pauses). No Blood Test, badge, incubation or Cure Lab machine any more (removed in v2).
 - Map: Helix Research Facility as a side-view cutaway: 4 floors, 15 rooms, 9 ladders, 10 duel tables
   (README "Map & Rooms").
-- Humans win if every zombie is shot, voted out or cured; infected win when no human is left. At 0:00 the
+- v3 (GAME_GUIDE sections 15–16): Restore Power (4 generator parts → generator in the Reactor → evac truck at the Entrance 90s later;
+  more humans than zombies inside = humans win, reason 'evac'), Blackout (zombies, once, breaker in the Server Room, 15s dark for
+  humans), security cameras (Lobby, last 5 room entries), body reports (call a meeting, no Emergency Button used), bluff calls in duels
+  (once per match: name the opponent's Zombie/Gun/Cure; right = cancelled + win +15, wrong = −10), Last Stand (last human: 1-bullet Gun +
+  5s red reveal), lightning every 90s lights every room, emotes, ghosts for out players, match recap, modifiers (menu: off / daily /
+  Double Guns / Pitch Black / Fast Claws / Extra Cures), XP ranks + badges + unlockable colours (`client/src/game/profile.js`, localStorage).
+- Humans win if every zombie is shot, voted out or cured (or by the evac); infected win when no human is left. At 0:00 the
   bigger team wins (more zombies than humans = infected; a tie goes to the humans; a Cure user in the cell
   counts as a human; shot and voted-out players don't count): `Match.timeUpWinner()`.
-- Secret points (GAME_GUIDE section 2): score = card points in hand (number = value, Gun 20, Cure 30, Zombie 0)
-  + banked (`POINTS`: Gun shot zombie +10 / human −10, bite +15, wasted Cure −10 extra) + time bonus (`POINTS.perMinute` 10 per full minute in your current role, from
+- Secret points (GAME_GUIDE section 2): score = card points in hand (number = value, Gun 10 per bullet left, Cure 30, Zombie 0)
+  + banked (`POINTS`: every Gun shot: zombie +40 net (the bullet's 10 banked back + 40) / human −20 net, bite +15, wasted Cure −10 extra;
+  v3: number win +5, part +10, vote helped your team +20 / hurt it −10, call right +15 / wrong −10, `finish()`: stealth +25, Last Stand +50) + time bonus (`POINTS.perMinute` 10 per full minute in your current role, from
   `roleSince`; reset when bitten or cured; paused by meetings). Only you see yours
   (gold chip under the role chip); results reveal all, highest = ★ top player. The team result still wins the match.
 - Keep all names, art and characters original. Do not copy other games' look.
@@ -41,6 +48,10 @@ This file only gives a short summary and the current state of the code.
 - `npm run dev`: dev server on port 5173, reachable from a phone on the same Wi-Fi.
 - `npm run build`: production build into `dist/`.
 - `npm test`: unit tests for the shared rules (`tests/*.test.js`, Node's built-in test runner).
+- `npm run sim`: balance simulator (`tools/simulate.js`): plays bot-only matches with the real Session/BotBrain code
+  headless (Phaser stubbed via esbuild, `tools/sim/`), prints win rates, length, shots, bites, votes. Options:
+  `--matches 200 --bots 5,7,11,14 --difficulty normal --minutes 6 --set RULES.zombieRegen=75000 --set POINTS.shotZombie=25`.
+  Session `settings.sim`: a bot plays your seat and nothing waits for input.
 - URL options:   `?role=infected` / `?role=human` forces your role; `?hand=0` starts you with N cards (test running out);
   `?seed=7` makes roles and the deck repeatable;
   `?fx=low` / `?fx=high` forces bloom off/on (off by default on phones).
@@ -58,12 +69,15 @@ This file only gives a short summary and the current state of the code.
 - `shared/duel.js`: `resolveDuel` compares two cards: number / infect / kill / cure / cure-number / draw.
 - `shared/match.js`: `assignRoles()`, `tallyVotes()` + `Match`, which holds every player's hand/role/alive/
   cooldowns/stats plus `hungerAt`, `cellUntil` (cure quarantine), `gagUntil`, `recoverUntil`, `shot`,
-  `quarantined` (voted out), `meetingsLeft`: `deal` / `allowed` (zombies never hold Guns or Cures; a human holds a Gun OR a Cure),
-  `canChallenge`, `settleDuel` (effects: card-taken, clue, stunned, killed, bitten, handed (secret Gun/Cure hand-off),
+  `quarantined` (voted out), `meetingsLeft`, `callsLeft`, `reported`; match-wide `rules` (RULES + `lobbyRules()` + modifier overrides),
+  `parts` / `powerAt` / `evacAt`, `blackoutUntil`, `accused`, `lastStandFor`: `deal` / `allowed` (zombies never hold Guns or Cures; a human holds a Gun OR a Cure),
+  `canChallenge`, `settleDuel(a, b, cardA, cardB, now, calls)` (bluff calls via `resolveCalls`; effects: called, call-wrong, card-taken, clue, stunned, killed, bitten, handed (secret Gun/Cure hand-off),
   cured, cell, cure-wasted, immune, fake, draw), `bite`, `cureZombie`, `sendToCell`, `trash` (Zombie cards
   never reach the deck), `tick` (events: zombie-grew / starving / growl / released), `canCallMeeting`,
   `canVote` / `canBeVoted`, `shiftTimers` (meetings pause the match), `quarantine`, `refill`, `winner()`,
-  score: `handPoints`, `timeBonus` (uses `match.time`, set by `tick`/`settleDuel`), `score(id)` (frozen in `finalScore` when shot or voted out), `award` (bank + a `points` effect), `ranking()`.
+  v3: `canReport`/`report`, `noteAccused`, `rewardVoters`, `checkLastStand`, `setupParts`/`pickPart`/`fitPart`/`dropPart`/`partCarried`,
+  `canBlackout`/`blackout`/`isBlackout`, `finish(reason)` (end bonuses, once), `canCall`,
+  score: `handPoints`, `scoreParts` (frozen in `finalParts`), `timeBonus` (uses `match.time`, set by `tick`/`settleDuel`), `score(id)` (frozen in `finalScore` when shot or voted out), `award` (bank + a `points` effect), `ranking()`.
 - Point values: `POINTS` in `shared/constants.js`. Tests: `tests/score.test.js`.
 - Rule numbers live in `RULES` in `shared/constants.js` (hand size, Zombie regrow, chase timings, cooldown...).
   Card names/colours/descriptions: `CARD_INFO`.
@@ -71,7 +85,8 @@ This file only gives a short summary and the current state of the code.
 
 ## Code
 - `side/facility.js`: the building: FLOORS (0 = basement, GROUND = 1), ROOMS (floor + x range), LADDERS, SPAWN,
-  FURNITURE per room, and derived DUEL_TABLES / SUPPLY_BOXES / EMERGENCY_BUTTON.
+  FURNITURE per room, and derived DUEL_TABLES / SUPPLY_BOXES / EMERGENCY_BUTTON; v3 stations GENERATOR, BREAKER, SECURITY_DESK,
+  EVAC_ROOM / EVAC_SPOT and PART_SPOTS (where the 4 parts can hide).
 - `side/inkArt.js`: `Ink` pen helpers, every furniture drawer, `drawFacility()` (building texture + the
   lamps, glows, signs, holograms, LEDs it needs), `drawSky()` and `drawSkyline()` (parallax layers).
 - `side/SideCharacter.js`: survivor sprite sheet (walk 8, idle 2, climb 4 frames), neon accent colour per player.
@@ -86,35 +101,60 @@ This file only gives a short summary and the current state of the code.
   walking to the nearest free duel table, bot-vs-bot duels, shots (`onKilled`: bodies stay on the floor, role
   secret), bites (`onBitten`), cures (`onCured`, `toCell`: the 60s cell in the Quarantine Cell room), Zombie
   regrowth, hunger/starving flare, infection signs (pale tint while recovering), refills, the Emergency Button
-  (`yourAction`/`doAction`), meetings (`callMeeting` → `startMeeting` → `updateMeeting` → `endMeeting`,
+  (`yourAction`/`doAction`/`stationFor`/`useStation`: report, fit, pick, meeting, blackout, camera), v3 `startWork`/`updateWork` (stand still
+  at a part / the generator), `updateEvac`, `doBlackout`, `reportBody`, `cameraEntries`, `checkLastStand`, `makeGhost`, `emote` (EMOTES),
+  `timeline` (`log()`, the recap), `sightOf(brain)` (Pitch Black / Blackout), meetings (`callMeeting` → `startMeeting(caller, body)` → `updateMeeting` → `endMeeting`,
   `youSay`, `vote`, `voters()`, `candidates()`, `quarantine`), timer (`clock()` is frozen during meetings), win check.
-  You are "P1" in speech (`name()`). Emits `chase` and `you-died` too.
+  You are "P1" in speech (`name()`). Emits `chase` and `you-died` too, and v3 `camera`, `last-stand`, `power`, `part-fitted`,
+  `blackout` (true/false), `lightning`, `ghost`.
 - `game/BotBrain.js`: bot AI (wander, hunt, refill, run/chase, suspicion + remembered evidence from
   clues/signs/Cures/shots; humans with a Gun or Cure hunt suspects and never waste them on someone they trust;
   humans call meetings; starving infected hunt recklessly; infected stage fake duels; cured bots forget; the
   cell holds them still) and meeting talk (`hear`, `speak`, `castVote`: humans share evidence, infected lie
-  and frame). DIFFICULTY: think speed, aggression, accept, card smarts, sight, hunt/lurk, sign noticing,
-  zombieUse, gunNerve, cureNerve, voteNerve, callNerve, fakeDuel.
+  and frame). v3: parts / generator / evac / body reports / breaker errands (ERRANDS modes, `arrive` uses the station),
+  `pickCall`, `noteCalled`, `seeEmote`, `speakUp` (emotes). DIFFICULTY: think speed, aggression, accept, card smarts, sight, hunt/lurk, sign noticing,
+  zombieUse, gunNerve, cureNerve, voteNerve, callNerve, fakeDuel, task, sabotage, bluff.
 - `side/Actor.js`: a survivor (sprite, tag, walk/climb controller). `side/Navigator.js`: floor-to-floor routes via ladders.
-- `scenes/ResultScene.js`: winning team, your result, every player's role and stats; Play again / Menu.
-- `scenes/MenuScene.js`: Play vs Bots with bots (5–14), difficulty, match length (saved in localStorage).
-- `scenes/DuelScene.js`: card-table close-up (5s to pick, flip, result lines; cancels cleanly if the duel became invalid).
+- `scenes/ResultScene.js`: winning team, your result, ★ top player, every player's role, stats and score; an ⓘ per row opens
+  `showInfo`: score breakdown (`Match.scoreParts`: cards, time bonus, banked points by reason), duels, actions, how they ended;
+  v3 RECAP button (`showRecap`, the Session timeline) and your XP / rank / badges (`recordMatch`, once per match).
+- `scenes/MenuScene.js`: Play vs Bots with bots (5–14), difficulty, match length, v3 modifier and colour (unlocked by rank) (saved in localStorage).
+- `scenes/DuelScene.js`: card-table close-up (5s to pick, v3 CALL ZOMBIE / GUN / CURE buttons (Z/G/C) when you have a call left, flip, result lines; cancels cleanly if the duel became invalid).
 - `scenes/MeetingScene.js`: meeting overlay: player tiles (in quarantine, gagged, voted, out), chat log, quick-chat buttons, vote buttons, result.
 - `scenes/SideUIScene.js`: HUD, role chip (ZOMBIE + hunger / HUMAN + in quarantine / gagged / recovering), timer,
-  hand, challenge button + Accept/Run prompt, meeting button (`ui/ActionButton.js`, Space), chase banner and red heartbeat,
-  death / quarantine screen, toasts, prompts, joystick, film grain.
+  hand, challenge button + Accept/Run prompt, station button (`ui/ActionButton.js`, Space), chase banner and red heartbeat,
+  death / quarantine screen (then the ghost), toasts, prompts, joystick, film grain; v3 power/evac/blackout line under the timer,
+  emote buttons (1–4), camera panel, big banners (LAST STAND, POWER RESTORED, BLACKOUT).
+- `scenes/SideScene.js` v3: stations drawn (`createStations`, part slots over the generator), `applyShades` (ghost / Blackout /
+  Pitch Black), `bigStrike` (lightning reveal); floor names "The Vats / Street Level / The Core / The Labs".
+- `audio/Sfx.js`: every sound effect synthesised with Web Audio (no audio files), one shared `sfx` (`sfx.play(name, vol)`,
+  `toggle()`, `startAmbient()` a quiet music pad (4 slow minor chords, bass, distant sonar pings; no noise), `ambientDark()` muffles it in the Blackout); unlocks on the first tap/key; saved on/off in localStorage
+  (menu: ♪ SOUND or S). Session plays them through `sound(name, at)` (quieter the further away; silent in the sim); DuelScene
+  `playResult`, MeetingScene (vote gong, result), SideUIScene (runner heartbeat, last-10s ticks). Dev console: `__sfx.play('gunshot')`.
 - `ui/cardArt.js`: card faces/back drawn in code (big numbers with pips; clawed hand, pistol with its bullets, syringe).
   `ui/HandUI.js` (tap a card to read it), `ui/ChallengeButton.js`, `ui/Toasts.js`.
 - `ui/HUD.js`: location chip, room banner, FPS, controls hint; exports `FONT` and `UI` colours.
 - `ui/Joystick.js`: floating joystick on the left half of the screen; read `joystick.vector`.
 - `shared/constants.js`: ROOMS (names + colours), MIN/MAX_PLAYERS (6/15), infectedCount(),
   15 PLAYER_COLORS, CARD_INFO, RULES.
-- `GAME_GUIDE.txt`: the rulebook (v2.3), written by the designer. Rule changes start there; keep code and README in sync.
+- `CARDS_POINTS_TIME.txt`: player guide to who gets Guns / Zombie cards / Cures, points, time bonus and every timer
+  (keep it in sync with GAME_GUIDE.txt and RULES / POINTS).
+- `GAME_GUIDE.txt`: the rulebook (v3.0), written by the designer. Rule changes start there; keep code and README in sync.
 
 ## Status
-- Phases 0–3.6 and the v2 rules are done: a full single-player match vs bots following GAME_GUIDE.txt
-  (instant bites, 2-bullet Guns, playable Cures + 60s cell, secret Gun hand-offs, hunger, fake duels, meetings).
-  Next: play-test toward ~50% human wins (hunger 60s, 1 Zombie card + regrow 40s after a bite, cell/gag 60s, recovering 20s, shot stun 8s
-  in RULES; bot nerve values in DIFFICULTY), then Phase 4 (online multiplayer).
-  Skipped for now: Safe Handshake, extra roles (Medic, Detective, Traitor), end-of-match recap.
+- Phases 0–3.6, the v2 rules and the v3.0 rules are done: a full single-player match vs bots following GAME_GUIDE.txt
+  (instant bites, 2-bullet Guns, playable Cures + 30s cell, secret Gun hand-offs, hunger, fake duels, meetings, and the v3
+  additions: power + evac, Blackout, cameras, body reports, bluff calls, Last Stand, lightning, emotes, ghosts, recap, modifiers, ranks).
+  Balance (sim, 200 matches, normal bots, `lobbyRules` + RULES.powerParts 4 / partPickTime 4s / evacTime 90s):
+players  zombies  humans win  zombies win  avg length  time-up  evac win  zombie shot  human shot  bites  voted Z/H  meetings  top player
+  -------  -------  ----------  -----------  ----------  -------  --------  -----------  ----------  -----  ---------  --------  ----------
+  6        1        45%         55%          3:24        4%       22%       0.8          0.0         2.9    0.1/0.8    1.1       57% human 
+  8        1        60%         41%          2:55        5%       28%       0.4          0.0         3.7    0.2/0.7    0.9       61% human 
+  10       2        40%         60%          3:36        7%       31%       1.1          0.1         5.4    0.2/1.4    1.6       48% human 
+  12       2        50%         50%          3:36        7%       43%       1.1          0.1         6.1    0.3/1.4    1.7       45% human 
+  15       3        52%         48%          4:13        15%      42%       1.5          0.3         7.0    0.7/2.0    2.7       42% human
+  Next: play-test toward ~50% human wins per lobby (tune `lobbyRules`, parts, evac), then Phase 4 (online multiplayer).
+  Not in code yet: the v2.5 duel TALK (10s voice/message between the two duelists before the 5s card pick;
+  GAME_GUIDE section 4): it comes with online play (Phase 4); DuelScene still goes straight to the pick.
+  Skipped for now: Safe Handshake, extra roles (Medic, Detective, Traitor), bots using the cameras.
 - All 10 duel tables play the same duel (the README's five table types were dropped to keep it simple).

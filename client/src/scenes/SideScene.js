@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
-import { ROOMS as ROOM_INFO } from '../../../shared/constants.js';
-import { ROOM_HEIGHT, ORIGIN_X, WORLD, FLOORS, GROUND, ROOMS, LADDERS } from '../side/facility.js';
+import { ROOMS as ROOM_INFO, RULES } from '../../../shared/constants.js';
+import { ROOM_HEIGHT, ORIGIN_X, WORLD, FLOORS, GROUND, ROOMS, LADDERS, GENERATOR, BREAKER, SECURITY_DESK, EVAC_SPOT } from '../side/facility.js';
 import { drawFacility, drawSky, drawSkyline } from '../side/inkArt.js';
 import { FONT } from '../ui/HUD.js';
 import Session from '../game/Session.js';
+import sfx from '../audio/Sfx.js';
 
-const FLOOR_NAMES = ['Basement', 'Ground floor', 'Floor 2', 'Floor 3'];
+// v3 theme: "Night Shift, Storm Lockdown". Each floor has a name and a mood.
+const FLOOR_NAMES = ['Basement · The Vats', 'Ground · Street Level', 'Floor 2 · The Core', 'Floor 3 · The Labs'];
 const hex = (h) => Phaser.Display.Color.HexStringToColor(h).color;
 
 /**
@@ -46,10 +48,12 @@ export default class SideScene extends Phaser.Scene {
 
     this.createLights();
     this.createSigns();
+    this.createStations();
     this.createWeather();
 
     // --- the match: you + bots, roles, cards (see game/Session.js)
     this.session = new Session(this, this.settings);
+    sfx.startAmbient(); // the quiet night-shift music pad
     this.mapOpen = false;
 
     // --- room darkness (above the players so dark rooms hide whoever is inside)
@@ -57,6 +61,8 @@ export default class SideScene extends Phaser.Scene {
       this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, 0x020308, 0.84).setOrigin(0).setDepth(20),
     );
     this.currentRoom = undefined;
+    this.blackout = false;
+    this.flashing = false;
 
     // --- camera
     const cam = this.cameras.main;
@@ -81,6 +87,22 @@ export default class SideScene extends Phaser.Scene {
       else this.scene.stop('MeetingScene');
     };
     this.events.on('meeting', onMeeting);
+    // v3: blackout, lightning, your ghost
+    const onBlackout = (on) => {
+      this.blackout = on;
+      this.applyShades(this.currentRoom, on ? 150 : 600);
+      if (on && this.match.get(this.youId).role === 'human') this.cameras.main.flash(120, 0, 0, 0);
+    };
+    const onLightning = () => this.bigStrike();
+    const onGhost = (ghost) => {
+      this.cameras.main.startFollow(ghost.sprite, true, 0.08, 0.1);
+      this.applyShades(this.currentRoom);
+    };
+    this.events.on('blackout', onBlackout);
+    this.events.on('lightning', onLightning);
+    this.events.on('ghost', onGhost);
+    const onPart = () => this.drawPartSlots();
+    this.events.on('part-fitted', onPart);
     this.events.once('match-over', (result) => {
       this.time.delayedCall(1600, () => {
         this.scene.stop('MeetingScene');
@@ -90,7 +112,12 @@ export default class SideScene extends Phaser.Scene {
       });
     });
     this.events.once('shutdown', () => {
+      sfx.stopAmbient();
       this.events.off('meeting', onMeeting);
+      this.events.off('blackout', onBlackout);
+      this.events.off('lightning', onLightning);
+      this.events.off('ghost', onGhost);
+      this.events.off('part-fitted', onPart);
       this.scene.stop('MeetingScene');
       this.scale.off('resize', this.applyZoom, this);
       this.scene.stop('SideUIScene');
@@ -222,6 +249,65 @@ export default class SideScene extends Phaser.Scene {
     }
   }
 
+  /** v3 stations: the generator (Reactor), the breaker (Server Room), the security desk (Lobby), the evac door (Entrance). */
+  createStations() {
+    const label = (x, y, text, color) =>
+      this.add.text(x, y, text, { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color, resolution: 3 }).setOrigin(0.5).setLetterSpacing(2).setDepth(6);
+    const fy = (spot) => FLOORS[spot.floor].y;
+    // generator: a label over the reactor core and a ring of part slots that light up as parts are fitted
+    label(GENERATOR.x, fy(GENERATOR) - 214, 'GENERATOR  ·  FIT PARTS HERE', '#ffb04a');
+    this.partSlots = this.add.graphics().setDepth(6);
+    this.drawPartSlots();
+    // breaker panel
+    const b = this.add.graphics().setDepth(6);
+    const bx = BREAKER.x;
+    const by = fy(BREAKER) - 222; // high on the wall, clear of the door sign
+    b.fillStyle(0x0b0d12, 1).fillRoundedRect(bx - 18, by, 36, 52, 4).lineStyle(1.5, 0xe9e4d6, 0.8).strokeRoundedRect(bx - 18, by, 36, 52, 4);
+    b.fillStyle(0xb4ff3a, 0.9).fillRect(bx - 10, by + 10, 6, 14).fillRect(bx + 4, by + 10, 6, 14);
+    b.lineStyle(2, 0xffb04a, 1).lineBetween(bx - 12, by + 38, bx + 12, by + 38);
+    label(bx, by - 10, 'BREAKER', '#b4ff3a');
+    // security desk monitor
+    const m = this.add.graphics().setDepth(6);
+    const mx = SECURITY_DESK.x;
+    const my = fy(SECURITY_DESK) - 118;
+    m.fillStyle(0x0b0d12, 1).fillRoundedRect(mx - 26, my, 52, 34, 3).lineStyle(1.5, 0xe9e4d6, 0.8).strokeRoundedRect(mx - 26, my, 52, 34, 3);
+    m.fillStyle(0x9ab8ff, 0.5).fillRect(mx - 22, my + 4, 21, 12).fillRect(mx + 1, my + 4, 21, 12).fillRect(mx - 22, my + 18, 21, 12).fillRect(mx + 1, my + 18, 21, 12);
+    label(mx, my - 10, 'SECURITY CAMERAS', '#9ab8ff');
+    // evac sign over the exit
+    label(EVAC_SPOT.x, fy(EVAC_SPOT) - 214, 'EVAC POINT', '#2fd2e0');
+  }
+
+  /** Four slots over the generator: lit = a fitted part. */
+  drawPartSlots() {
+    const parts = this.session?.match.parts ?? [];
+    const g = this.partSlots.clear();
+    const n = RULES.powerParts;
+    const y = FLOORS[GENERATOR.floor].y - 196;
+    for (let i = 0; i < n; i++) {
+      const x = GENERATOR.x + (i - (n - 1) / 2) * 20;
+      const lit = parts.filter((p) => p.fitted).length > i;
+      g.fillStyle(lit ? 0xffb04a : 0x1a1d24, 1).fillRoundedRect(x - 6, y, 12, 8, 2).lineStyle(1, 0xffb04a, 0.8).strokeRoundedRect(x - 6, y, 12, 8, 2);
+    }
+  }
+
+  /**
+   * v3: a big lightning strike lights EVERY room for a moment, so everyone's silhouette shows
+   * (dark rooms included). Then the darkness comes back.
+   */
+  bigStrike() {
+    this.strike?.(0.55);
+    this.flashing = true;
+    for (const s of this.shades) {
+      this.tweens.killTweensOf(s);
+      s.fillAlpha = 0.05;
+    }
+    this.cameras.main.flash(160, 200, 215, 255);
+    this.time.delayedCall(RULES.lightningFlash, () => {
+      this.flashing = false;
+      this.applyShades(this.currentRoom, 350);
+    });
+  }
+
   createWeather() {
     const b = this.art.building;
     this.add
@@ -241,16 +327,20 @@ export default class SideScene extends Phaser.Scene {
       .setDepth(25);
     // lightning lights up the sky behind the building
     const flash = this.add.rectangle(0, 0, WORLD.width, WORLD.height, 0xc8d8ff, 1).setOrigin(0).setAlpha(0).setScrollFactor(0.15).setDepth(-1).setBlendMode(Phaser.BlendModes.ADD);
-    const strike = () => {
+    this.strike = (power = 0.3) => {
       this.tweens.chain({
         targets: flash,
         tweens: [
-          { alpha: 0.3, duration: 60 },
+          { alpha: power, duration: 60 },
           { alpha: 0.04, duration: 90 },
-          { alpha: 0.2, duration: 50 },
+          { alpha: power * 0.66, duration: 50 },
           { alpha: 0, duration: 700 },
         ],
       });
+    };
+    const strike = () => {
+      this.strike();
+      this.time.delayedCall(Phaser.Math.Between(300, 1200), () => sfx.play('thunder', 0.3));
       this.time.delayedCall(Phaser.Math.Between(7000, 18000), strike);
     };
     this.time.delayedCall(3500, strike);
@@ -265,12 +355,13 @@ export default class SideScene extends Phaser.Scene {
     return this.session.youId;
   }
 
+  /** The sprite the camera follows: you, or your ghost once you are out. */
   get player() {
-    return this.session.you.sprite;
+    return this.session.view.sprite;
   }
 
   get state() {
-    return this.session.you.state;
+    return this.session.view.state;
   }
 
   get busy() {
@@ -286,7 +377,7 @@ export default class SideScene extends Phaser.Scene {
   }
 
   nearbyLadder() {
-    return this.session.you.nearbyLadder();
+    return this.session.view.nearbyLadder();
   }
 
   nearbyTarget() {
@@ -339,12 +430,25 @@ export default class SideScene extends Phaser.Scene {
   }
 
   updateRoom() {
-    const floor = this.session.you.floor();
+    const floor = this.session.view.floor();
     const px = this.player.x - ORIGIN_X;
     const room = this.rooms.find((r) => r.floor === floor && px >= r.x0 && px < r.x1) ?? null;
     if (room === this.currentRoom) return;
     this.currentRoom = room;
-    // light the current room, dim the neighbours (doorways and ladders), darken the rest
+    this.applyShades(room);
+    this.events.emit('room-changed', room);
+  }
+
+  /**
+   * Light the current room, dim the neighbours (doorways and ladders), darken the rest.
+   * Ghosts see everything; a Blackout (humans only) and Pitch Black make it all darker.
+   */
+  applyShades(room, ms = 500) {
+    if (this.flashing) return;
+    const ghost = !!this.session.ghost;
+    const dark = this.blackout && !ghost && this.match.get(this.youId).role === 'human';
+    const pitch = this.session.pitchBlack;
+    const [lit, near, far] = ghost ? [0.12, 0.12, 0.2] : dark ? [0.8, 0.93, 0.95] : pitch ? [0.3, 0.75, 0.92] : [0, 0.5, 0.84];
     const neighbours = new Set();
     if (room) {
       for (const r of this.rooms) {
@@ -357,9 +461,9 @@ export default class SideScene extends Phaser.Scene {
       }
     }
     this.rooms.forEach((r, i) => {
-      const target = r === room ? 0 : neighbours.has(r) ? 0.5 : 0.84;
-      this.tweens.add({ targets: this.shades[i], fillAlpha: target, duration: 500, ease: 'Sine.out' });
+      const target = r === room ? lit : neighbours.has(r) ? near : far;
+      this.tweens.killTweensOf(this.shades[i]);
+      this.tweens.add({ targets: this.shades[i], fillAlpha: target, duration: ms, ease: 'Sine.out' });
     });
-    this.events.emit('room-changed', room);
   }
 }

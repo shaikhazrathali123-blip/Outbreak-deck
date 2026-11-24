@@ -148,3 +148,27 @@ const spotOf = (type) => {
 };
 // The Emergency Button (Central Hall) calls a meeting.
 export const EMERGENCY_BUTTON = spotOf('emergencyButton');
+
+// ---------------------------------------------------------------- v3 stations
+// The generator in the Reactor: fit the power parts here (GAME_GUIDE "Restore Power").
+export const GENERATOR = spotOf('reactorCore');
+// The breaker in the Server Room: the zombies' one Blackout per match.
+export const BREAKER = { room: 'server', floor: 0, x: ORIGIN_X + 440 };
+// The security desk in the Lobby: shows the last room entries.
+export const SECURITY_DESK = { room: 'lobby', floor: 1, x: ORIGIN_X + 490 };
+// Where the evac truck stops: anyone inside the Entrance when it arrives is counted.
+export const EVAC_ROOM = 'entrance';
+export const EVAC_SPOT = { room: 'entrance', floor: 1, x: ORIGIN_X + 150 };
+// Places a generator part can be hidden (3 are used per match). Clear of ladders and stations.
+export const PART_SPOTS = [
+  { room: 'lab1', floor: 3, x: ORIGIN_X + 200 },
+  { room: 'research', floor: 3, x: ORIGIN_X + 1060 },
+  { room: 'lab2', floor: 3, x: ORIGIN_X + 1350 },
+  { room: 'storage', floor: 3, x: ORIGIN_X + 1790 },
+  { room: 'medbay', floor: 2, x: ORIGIN_X + 120 },
+  { room: 'curelab', floor: 2, x: ORIGIN_X + 1960 },
+  { room: 'locker', floor: 1, x: ORIGIN_X + 1060 },
+  { room: 'supply', floor: 1, x: ORIGIN_X + 1560 },
+  { room: 'cafeteria', floor: 0, x: ORIGIN_X + 700 },
+  { room: 'server', floor: 0, x: ORIGIN_X + 200 },
+];

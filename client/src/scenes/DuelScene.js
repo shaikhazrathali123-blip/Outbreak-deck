@@ -3,6 +3,7 @@ import { FONT, UI } from '../ui/HUD.js';
 import { cardTexture, cardScale } from '../ui/cardArt.js';
 import { cardName, isPlayable } from '../../../shared/cards.js';
 import { RULES, CARD_INFO } from '../../../shared/constants.js';
+import sfx from '../audio/Sfx.js';
 
 const hex = (h) => Phaser.Display.Color.HexStringToColor(h).color;
 
@@ -22,6 +23,8 @@ export default class DuelScene extends Phaser.Scene {
     this.finished = false;
     this.outcome = null; // Phaser reuses this scene: clear the last duel's result
     this.canClose = false;
+    this.call = null; // v3: your bluff call ('zombie' | 'gun' | 'cure') or null
+    this.callButtons = [];
   }
 
   create() {
@@ -66,14 +69,64 @@ export default class DuelScene extends Phaser.Scene {
     this.tweens.add({ targets: this.timer, width: 0, duration: RULES.pickTime, onComplete: () => this.timeout() });
 
     this.buildHand();
+    if (this.d.match.canCall(this.d.youId)) this.buildCalls();
     this.help = this.add.text(W / 2, H - this.handH - (small ? 20 : 34), 'PICK A CARD  ·  TAP OR PRESS 1–9', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#ffd27a' })
       .setOrigin(0.5).setLetterSpacing(3);
 
     this.input.keyboard?.on('keydown', (e) => {
       const n = Number(e.key);
       if (n >= 1 && n <= 9) this.pickPlayable(n - 1);
+      const k = { z: 'zombie', g: 'gun', c: 'cure' }[e.key.toLowerCase()];
+      if (k && this.callButtons.length) this.toggleCall(k);
       if ((e.key === 'Enter' || e.key === ' ') && this.canClose) this.close();
     });
+  }
+
+  /** v3: bluff call buttons. Name the card they will play: right = it is cancelled and you win (+15), wrong = -10. Once per match. */
+  buildCalls() {
+    const W = this.scale.width;
+    const y = (this.small ? 64 : 96) + (this.small ? 20 : 28);
+    this.callButtons = ['zombie', 'gun', 'cure'].map((kind, i) => {
+      const x = W / 2 + (i - 1) * (this.small ? 104 : 124);
+      const g = this.add.graphics();
+      const t = this.add.text(x, y, `CALL ${CARD_INFO[kind].name.toUpperCase()}`, { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: CARD_INFO[kind].color }).setOrigin(0.5).setLetterSpacing(2);
+      const z = this.add.zone(x, y, this.small ? 96 : 114, 26).setInteractive({ useHandCursor: true });
+      z.on('pointerdown', (p, lx, ly, e) => {
+        e?.stopPropagation();
+        this.toggleCall(kind);
+      });
+      return { kind, x, y, g, t, z };
+    });
+    this.callNote = this.add.text(W / 2, y + (this.small ? 18 : 22), 'BLUFF CALL (ONCE PER MATCH): RIGHT = THEIR CARD IS CANCELLED, YOU WIN +15  ·  WRONG = -10  ·  Z / G / C', {
+      fontFamily: FONT, fontSize: '10px', fontStyle: '700', color: UI.dim,
+    }).setOrigin(0.5).setLetterSpacing(1);
+    this.drawCalls();
+  }
+
+  toggleCall(kind) {
+    if (this.picked) return;
+    this.call = this.call === kind ? null : kind;
+    sfx.play('tap');
+    this.drawCalls();
+  }
+
+  drawCalls() {
+    const w = this.small ? 96 : 114;
+    for (const b of this.callButtons) {
+      const on = this.call === b.kind;
+      const c = hex(CARD_INFO[b.kind].color);
+      b.g.clear().fillStyle(on ? c : UI.panel, on ? 1 : 0.9).fillRoundedRect(b.x - w / 2, b.y - 13, w, 26, 13).lineStyle(1.5, c, on ? 1 : 0.6).strokeRoundedRect(b.x - w / 2, b.y - 13, w, 26, 13);
+      b.t.setColor(on ? '#0a0b10' : CARD_INFO[b.kind].color);
+    }
+  }
+
+  hideCalls() {
+    for (const b of this.callButtons) {
+      b.z.disableInteractive();
+      // keep your call on show, fade the others
+      this.tweens.add({ targets: [b.g, b.t], alpha: this.call === b.kind ? 1 : 0, duration: 200 });
+    }
+    if (this.callNote) this.tweens.add({ targets: this.callNote, alpha: 0, duration: 200 });
   }
 
   drawSlot(slot, name, color) {
@@ -128,8 +181,10 @@ export default class DuelScene extends Phaser.Scene {
   pick(img) {
     if (this.picked || !img) return;
     this.picked = img;
+    sfx.play('cardPick');
     this.tweens.killTweensOf(this.timer);
     this.help.setText('');
+    this.hideCalls();
     for (const other of this.handCards) if (other !== img) this.tweens.add({ targets: other, alpha: 0.15, duration: 200 });
     // your card slides to the table face down
     const scale = cardScale(this.slotH);
@@ -167,9 +222,13 @@ export default class DuelScene extends Phaser.Scene {
   async reveal() {
     const { match, youId, opp } = this.d;
     const oppCard = opp.pickCard();
+    const calls = {};
+    if (this.call) calls[youId] = this.call;
+    const oppCall = opp.pickCall?.();
+    if (oppCall) calls[opp.id] = oppCall;
     let out;
     try {
-      out = match.settleDuel(youId, opp.id, this.picked.card.id, oppCard?.id, this.d.now());
+      out = match.settleDuel(youId, opp.id, this.picked.card.id, oppCard?.id, this.d.now(), calls);
     } catch {
       // the duel can no longer happen (e.g. the opponent ran out of cards): cancel it cleanly
       this.outcome = { result: { winner: null, kind: 'draw' }, winnerId: null, loserId: null, effects: [] };
@@ -178,7 +237,9 @@ export default class DuelScene extends Phaser.Scene {
       return;
     }
     this.outcome = out;
+    sfx.play('cardFlip');
     await Promise.all([this.flip(this.picked, cardTexture(this, this.picked.card)), this.flip(this.oppCard, cardTexture(this, oppCard))]);
+    this.playResult(out);
 
     const r = out.result; // a = you, b = opponent
     this.scoreLabel(this.youSlot, this.picked.card, r.a);
@@ -197,8 +258,9 @@ export default class DuelScene extends Phaser.Scene {
     const { width: W } = this.scale;
     const kind = r.kind;
     const cured = kind === 'cure' || (kind === 'cure-number' && out.effects.some((e) => e.type === 'cured'));
-    const headline = fake ? 'FAKE DUEL' : draw ? 'DRAW' : kind === 'kill' ? (youWon ? 'BANG!' : 'SHOT') : kind === 'infect' ? (youWon ? 'BITE!' : 'BITTEN') : cured ? 'CURED' : youWon ? 'YOU WIN' : 'YOU LOSE';
-    const color = fake ? '#3ee67a' : draw ? '#e9e4d6' : kind === 'kill' ? '#ff7a3a' : kind === 'infect' ? '#3ee67a' : cured ? '#3e8bff' : youWon ? '#3ee6d0' : '#ff4a5a';
+    const called = kind === 'called';
+    const headline = called ? (draw ? 'BOTH CALLED IT' : youWon ? 'CALLED IT!' : 'THEY CALLED IT') : fake ? 'FAKE DUEL' : draw ? 'DRAW' : kind === 'kill' ? (youWon ? 'BANG!' : 'SHOT') : kind === 'infect' ? (youWon ? 'BITE!' : 'BITTEN') : cured ? 'CURED' : youWon ? 'YOU WIN' : 'YOU LOSE';
+    const color = called ? '#ffd27a' : fake ? '#3ee67a' : draw ? '#e9e4d6' : kind === 'kill' ? '#ff7a3a' : kind === 'infect' ? '#3ee67a' : cured ? '#3e8bff' : youWon ? '#3ee6d0' : '#ff4a5a';
     if (kind === 'kill' || kind === 'infect') this.cameras.main.shake(260, 0.012);
     this.title.setText(headline).setColor(color).setShadow(0, 0, color, 22, false, true).setAlpha(0);
     this.tweens.add({ targets: this.title, alpha: 1, duration: 250 });
@@ -223,6 +285,24 @@ export default class DuelScene extends Phaser.Scene {
     this.time.delayedCall(7000, () => this.close());
   }
 
+  /** The sound of the result, from your side of the table. */
+  playResult(out) {
+    const you = this.d.youId;
+    const fx = (type, who = you) => out.effects.some((e) => e.type === type && e.player === who);
+    const kind = out.result.kind;
+    const won = out.winnerId === you;
+    let name = !out.winnerId ? 'draw' : won ? 'duelWin' : 'duelLose';
+    if (kind === 'fake') name = 'fake';
+    else if (kind === 'called') name = out.effects.some((e) => e.type === 'called' && e.player === you) ? 'called' : 'callWrong';
+    else if (kind === 'kill') name = 'gunshot';
+    else if (kind === 'infect') name = fx('immune', out.loserId) ? 'draw' : 'bite';
+    else if (out.effects.some((e) => e.type === 'cured')) name = 'cure';
+    else if (out.effects.some((e) => e.type === 'cure-wasted')) name = 'cureWasted';
+    sfx.play(name);
+    if (kind === 'kill' && !won) this.time.delayedCall(250, () => sfx.play('death'));
+    if (kind !== 'called' && fx('call-wrong')) this.time.delayedCall(500, () => sfx.play('callWrong', 0.7));
+  }
+
   scoreLabel(slot, card, score) {
     const color = CARD_INFO[card.kind].color;
     const t = this.add.text(slot.x, slot.y - this.slotH / 2 - 16, score.label, { fontFamily: FONT, fontSize: '18px', fontStyle: '700', color })
@@ -244,19 +324,28 @@ export default class DuelScene extends Phaser.Scene {
         const theyZombie = out.cards[opp.id]?.kind === 'zombie';
         lines.push(theyZombie ? ['ZOMBIE KILLED', '#ff7a3a', 22] : [`You shot ${opp.name}`, '#ff7a3a', 22]);
         lines.push([theyZombie ? 'They played a Zombie card. Everyone heard the shot.' : 'Were they a zombie? Nobody will ever know. Everyone heard it.', '#e9e4d6']);
-        lines.push([`You are stunned ${RULES.shotStun / 1000}s.`, '#ffb04a']);
+        if (RULES.shotStun > 0) lines.push([`You are stunned ${RULES.shotStun / 1000}s.`, '#ffb04a']);
       } else if (e.type === 'cured' && e.player === youId) lines.push(['YOU WERE CURED', '#3e8bff', 22], [`Human again. Gagged ${RULES.gagTime / 1000}s, and you forget the other zombies.`, '#c9ced8']);
       else if (e.type === 'cured') lines.push([`${opp.name} WAS A ZOMBIE: NOW CURED`, '#3e8bff', 20], ['Your Cure worked.', '#c9ced8']);
       else if (e.type === 'cell' && e.player === youId) lines.push([`You go to quarantine for ${RULES.cureQuarantine / 1000}s (gagged, can't move).`, '#ff9a5a']);
       else if (e.type === 'cure-wasted' && e.player === youId) lines.push(['CURE WASTED', '#ff9a5a', 20], [`${opp.name} is human. You lose the duel.`, '#c9ced8']);
       else if (e.type === 'cure-wasted') lines.push([`${opp.name} wasted a Cure on you.`, '#c9ced8']);
       else if (e.type === 'immune') lines.push([e.player === youId ? 'Still recovering from the cure: the bite did nothing.' : `${opp.name} is still recovering: no bite.`, '#c9ced8']);
-      else if (e.type === 'bitten' && e.player === youId) lines.push(['YOU WERE BITTEN', '#3ee67a', 22], [`You are a ZOMBIE now. Your Zombie card grows in ${RULES.zombieRegen / 1000}s.`, '#3ee67a']);
+      else if (e.type === 'bitten' && e.player === youId) lines.push(['YOU WERE BITTEN', '#3ee67a', 22], [`You are a ZOMBIE now. Your Zombie card grows in ${Math.round(this.d.match.zombieRegen() / 1000)}s.`, '#3ee67a']);
+      else if (e.type === 'called' && e.player === youId) {
+        lines.push([`You called their ${CARD_INFO[e.card].name.toUpperCase()} card: it is cancelled!`, '#ffd27a', 20]);
+        lines.push(e.card === 'zombie' ? [`${opp.name} is INFECTED. Only zombies hold Zombie cards.`, '#3ee67a'] : [`${opp.name} is human: only humans hold a ${CARD_INFO[e.card].name}.`, '#c9ced8']);
+      } else if (e.type === 'called') lines.push([`${opp.name} called your ${CARD_INFO[e.card].name.toUpperCase()} card: it is cancelled.`, '#ff9a5a', 18]);
+      else if (e.type === 'call-wrong' && e.player === youId) lines.push([`Wrong call: they did not play a ${CARD_INFO[e.called].name}.`, '#ff9a5a']);
+      else if (e.type === 'call-wrong') lines.push([`${opp.name} made a wrong bluff call (${CARD_INFO[e.called].name}).`, '#c9ced8']);
       else if (e.type === 'bitten' && e.by === youId) lines.push([`You bit ${opp.name}`, '#3ee67a', 20], ['They are one of you now.', '#c9ced8']);
       else if (e.type === 'stunned') lines.push([e.player === youId ? `You are stunned for ${RULES.stunTime / 1000} seconds` : `${opp.name} is stunned`, '#ffb04a']);
       else if (e.type === 'clue' && e.to === youId) lines.push([`CLUE: ${e.text}`, '#ffd27a']);
     }
-    const POINT_REASONS = { 'shot-zombie': 'you shot a zombie', 'shot-human': 'you shot a human', bite: 'bite', 'cure-wasted': 'Cure wasted' };
+    const POINT_REASONS = {
+      'shot-zombie': 'you shot a zombie', 'shot-human': 'you shot a human', bite: 'bite', 'cure-wasted': 'Cure wasted',
+      'number-win': 'number duel won', 'call-right': 'right call', 'call-wrong': 'wrong call',
+    };
     for (const e of out.effects) {
       if (e.type === 'points' && e.player === youId) lines.push([`${e.amount > 0 ? '+' : ''}${e.amount} POINTS  ·  ${POINT_REASONS[e.reason] ?? e.reason}`, e.amount > 0 ? '#3ee6a0' : '#ff5a68']);
     }

@@ -1,0 +1,16 @@
+[
+  { "id": "hook", "say": "You're trapped in the Helix research facility, with up to fourteen others. Some of them... aren't human anymore. And nobody knows who." },
+  { "id": "teams", "say": "Everyone gets a secret role. Most players are human. One to three start infected. Zombies can see each other. Humans can't see anyone." },
+  { "id": "challenge", "say": "Walk up to anyone and challenge them. They have five seconds. Accept, and you both walk to a duel table. Or run." },
+  { "id": "chase", "say": "Run, and the challenger gets eight seconds to catch you. Get touched, and the duel is forced. Ladders are your friend." },
+  { "id": "talk", "say": "At the table, you first get ten seconds to talk, by voice or message. Bluff, threaten, or make a deal. Anyone can lie. When the talk ends, the card timer starts: five seconds to pick your card." },
+  { "id": "numbers", "say": "There are only four kinds of card. Number cards, one to nine. Higher number wins, and the winner takes the loser's card." },
+  { "id": "zombie", "say": "The Zombie card. Only zombies hold it. It beats any number, even a nine, and the loser turns into a zombie on the spot. A new one takes seventy-five seconds to grow." },
+  { "id": "gun", "say": "The Gun. Humans only, two bullets. It kills whoever it's played on, human or zombie. Every shot is announced, but never the target's role." },
+  { "id": "cure", "say": "The Cure. Play it on a zombie, and they become human again, but you spend sixty seconds in quarantine. Play it on a human, and it's wasted. Holding it won't protect you." },
+  { "id": "hunger", "say": "Once their Zombie card grows, a zombie has twenty seconds to use it, or they start starving: growling, and flaring green. Watch for faint green flickers, twitches, and glowing footprints." },
+  { "id": "meeting", "say": "Suspicious? Hit the emergency button in the central hall. The clock stops. Thirty seconds to talk, fifteen to vote. The most votes goes to quarantine. And remember: anyone can lie." },
+  { "id": "win", "say": "Humans win by clearing out every zombie. Zombies win when no human is left. When time runs out, the bigger team wins, and a tie goes to the humans." },
+  { "id": "score", "say": "Your team wins or loses together. But your secret score decides who's the top player. The cards in your hand count: a number is worth its value, a Gun ten per bullet, a Cure thirty. Shoot a zombie, plus forty. Shoot a human, minus twenty. A bite, plus fifteen. Using your Cure costs its thirty, and wasting it on a human costs forty. And every full minute in your role adds ten." },
+  { "id": "outro", "say": "Outbreak Deck. Six to fifteen players. Five to eight minutes. Who's still human?" }
+]

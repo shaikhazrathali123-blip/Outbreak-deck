@@ -1,13 +1,29 @@
 ================================================================
-                OUTBREAK DECK  -  HOW TO PLAY  (v2.3)
+                OUTBREAK DECK  -  HOW TO PLAY  (v3.0)
 ================================================================
 
 THE IDEA IN ONE LINE
 --------------------
-You are trapped in the Helix research facility. A few players are
-secretly ZOMBIES (infected). Everyone fights with cards. If a zombie
-plays its ZOMBIE card on you, you become a zombie too.
-Trust no one.
+NIGHT SHIFT, STORM LOCKDOWN. A storm has locked the night crew inside
+the Helix research facility. A few players are secretly ZOMBIES
+(infected). Everyone fights with cards. If a zombie plays its ZOMBIE
+card on you, you become a zombie too. Trust no one.
+
+WHAT'S NEW IN v3.0
+  - Fewer timers: cure quarantine and gag 30s (were 60s), no stun
+    after a shot, one STARVING state, one Zombie regrow time per
+    lobby size.
+  - Balance by lobby size (Guns and Zombie regrow, section 3).
+  - RESTORE POWER: 4 generator parts, then an evac truck: a second
+    way for humans to win (section 15).
+  - BLACKOUT: the zombies' one sabotage (section 15).
+  - SECURITY CAMERAS in the Lobby (section 15).
+  - BLUFF CALL in duels, once per match (section 4).
+  - LAST STAND for the last human (section 2).
+  - BODY REPORTS call a meeting (section 8).
+  - Lightning shows every silhouette, emotes, ghosts, match recap,
+    daily modifiers, ranks, badges and colours (sections 12, 16).
+  - New points for smart play (section 2).
 
 
 ----------------------------------------------------------------
@@ -43,8 +59,18 @@ see your own role.
 ----------------------------------------------------------------
 
   BEFORE THE TIMER ENDS
-    HUMANS WIN   if every zombie has been shot, voted out, or cured.
+    HUMANS WIN   if every zombie has been shot, voted out, or cured,
+                 OR if they ESCAPE: restore the power and, when the
+                 evac truck arrives, more humans than zombies are
+                 standing in the ENTRANCE (section 15).
     ZOMBIES WIN  if every human has turned, been shot or voted out.
+
+  LAST STAND
+    When only ONE human is left (and at least one zombie), that human
+    gets a Gun with 1 bullet (or one more bullet if they already hold
+    a Gun; it is allowed next to a Cure), and sees every zombie glow
+    red for 5 seconds. Everyone is told "LAST STAND". It happens once
+    per match.
 
   WHEN THE TIMER ENDS, THE BIGGER TEAM WINS
     - More zombies than humans left  -> ZOMBIES WIN.
@@ -68,14 +94,31 @@ see your own role.
 
     CARD POINTS (count only while the card is in your hand)
       Number card   its number (1-9)
-      Gun           20  (while it still has bullets)
+      Gun           10 per bullet left (a full Gun = 20)
       Cure          30
       Zombie card    0
 
+    GUN SHOTS (every bullet the same)
+      Shoot a zombie  -> you keep that bullet's 10 and get +40 more:
+                         +40 for EVERY zombie you shoot.
+      Shoot a human   -> that bullet's 10 is gone and -10 more:
+                         -20 for EVERY human you shoot.
+      Example: 7, 4, 2 + a full Gun = 33. Shoot two zombies: 73,
+      then 113. Shoot a human instead: 13. Never shoot: stays 33.
+
     BANKED POINTS (yours to keep)
-      Your Gun shoots a zombie   +10
-      Your Gun shoots a human    -10
-      Your Zombie card bites     +15
+      Your Zombie card bites                        +15
+      Win a duel number vs number                    +5
+      Fit a generator part                          +10
+      Your vote helped your team (*)                +20
+      Your vote hurt your team (*)                  -10
+      Right bluff call                              +15
+      Wrong bluff call                              -10
+      End: a zombie still in, never accused         +25
+      End: the last human (Last Stand) made it
+           to 0:00 or the evac                      +50
+      (*) You voted for the player who was voted out. A human voting
+          out a zombie, or a zombie voting out a human, helped.
 
     TIME BONUS (live)
       +10 for every full minute you stay in your role (human or
@@ -87,7 +130,6 @@ see your own role.
       Lose a duel   -> the card you played goes, and its points too.
       Cure a zombie -> you save them, but the Cure is gone: -30.
       Cure a human  -> wasted: the Cure is gone (-30) and -10 more = -40.
-      Last bullet   -> the empty Gun leaves your hand: -20.
       Bitten        -> your Gun or Cure is handed off, and its points.
       Shot or voted out -> your score freezes at what it was.
 
@@ -105,12 +147,25 @@ see your own role.
            Beats ANY number card, even a 9, and BITES the loser.
            The loser turns into a zombie IMMEDIATELY.
            A zombie holds only ONE Zombie card. It is used up when
-           played, and a new one grows 40 SECONDS later, so a zombie
-           can bite at most once every 40 seconds.
+           played, and a new one grows back after ONE fixed time
+           that depends only on the lobby size:
+                6 players      75 seconds
+                7-8 players    45 seconds
+                9-12 players   65 seconds
+                13-15 players  95 seconds
+           (Tuned with the balance simulator. The Fast Claws modifier
+           makes it 25% faster.)
            The first zombies start with their card. A newly bitten
-           zombie grows their first card 40 seconds after turning.
+           zombie grows their first card the same time after turning.
 
-  GUN      (rare, humans only; you hold a Gun OR a Cure, never both)
+  GUN      (humans only; you hold a Gun OR a Cure, never both)
+           AT THE START, SOME HUMANS HAVE A GUN (rounded), by lobby:
+                6 players      50% of the humans
+                7-8 players    20%
+                9-12 players   40%
+                13-15 players  45%
+           (Double Guns modifier: twice as many.) The other humans
+           start without one, but can still find one at a refill point.
            A Gun has 2 BULLETS. Each time you play it, one bullet is
            used. When both are gone, the card is used up.
            The Gun KILLS whoever you play it on, human or zombie:
@@ -120,7 +175,8 @@ see your own role.
            A dead player is out of the match. Their role stays SECRET.
            EVERY SHOT IS ANNOUNCED to everyone (for example "P5 shot
            P3"): the names, but NEVER the target's role.
-           After any shot, the shooter is STUNNED for 8 seconds.
+           There is NO stun after a shot (v3). Hitting a human costs
+           you 20 points and makes you look bad: that is the cost.
            Zombies can never hold a Gun.
            Killing a human helps the zombies. Only shoot when sure!
 
@@ -141,13 +197,13 @@ see your own role.
              - They become human, lose all Zombie cards, and hunger
                stops.
              - They forget the other zombies (green outlines gone).
-             - They are GAGGED for 60 seconds (no quick-chat, no
+             - They are GAGGED for 30 seconds (no quick-chat, no
                accusing, no voting).
              - They are "RECOVERING" for 20 seconds (pale tint) and
                cannot be bitten.
              - They are not told who cured them.
 
-           THE CURE USER IS QUARANTINED FOR 60 SECONDS:
+           THE CURE USER IS QUARANTINED FOR 30 SECONDS:
              - They go to the quarantine cell and cannot move, duel,
                or call a meeting.
              - They are gagged: no quick-chat, no accusing, no voting,
@@ -198,19 +254,37 @@ STEP 2 - ACCEPT OR RUN
      RUN    (N)  -> a CHASE starts (see below).
    If they do not choose in time, they RUN.
 
-STEP 3 - PICK A CARD
-   At the table you have 5 seconds to pick one card.
+STEP 3 - TALK (10 seconds)
+   At the table the two players can talk to each other first, by
+   voice or by message, for 10 seconds. Bluff, threaten, beg, make a
+   deal: anything goes, and anyone can lie. Only the two duelists
+   hear it. Nobody can play a card yet.
+
+STEP 4 - PICK A CARD (and maybe make a BLUFF CALL)
+   When the talk ends, the card timer starts: you have 5 seconds to
+   pick one card.
    (If you do not pick, a random card is played for you.)
    Both cards flip over at the same time.
 
-STEP 4 - RESULT
+   BLUFF CALL (once per match): before you pick, you may CALL the card
+   you think your opponent will play: ZOMBIE, GUN or CURE (keys Z / G /
+   C, or the buttons above the table).
+     - RIGHT: their card is CANCELLED (a Zombie card is spent and
+       regrows, a Gun loses a bullet, a Cure is thrown away), you WIN
+       the duel, your own card comes back, and +15 points. Calling a
+       Zombie card right also tells you they are infected.
+     - WRONG: -10 points, and the duel plays out as normal.
+     - Both players right: both cards are cancelled, nobody wins.
+     - Two zombies (fake duel): calls are ignored and not used up.
+
+STEP 5 - RESULT
    - Number win: the winner takes the loser's card.
    - Zombie win: the loser is bitten and turns at once (a Cure in
      their hand does not help).
    - Gun: the target is shot and is out of the match; the shot is
-     announced and the shooter is stunned for 8 seconds.
+     announced (no stun any more).
    - Cure: on a zombie, the zombie is cured and the Cure user is
-     quarantined for 60 seconds. On a human, the Cure is wasted and
+     quarantined for 30 seconds. On a human, the Cure is wasted and
      you lose the duel (see section 3).
    - A human who beats a zombie with a NUMBER card also gets a CLUE,
      and the zombie is STUNNED for 12 seconds (cannot move or duel).
@@ -239,7 +313,7 @@ STEP 4 - RESULT
    When a Zombie card beats you, you are BITTEN and turn into a
    zombie right away. Your role chip changes to ZOMBIE, you see the
    other zombies (green outline), and your first Zombie card
-   grows 40 seconds later.
+   grows after your lobby's regrow time (section 3).
    Nobody else is told. They only find out by watching you.
 
    Holding a CURE does not protect you: you cannot cure yourself.
@@ -247,17 +321,19 @@ STEP 4 - RESULT
    (Cure vs ZOMBIE card). Any Gun or Cure you hold when bitten is
    discarded and given secretly to a random human (section 3).
 
-   Your hunger clock starts at the moment you turn (section 7).
+   Your hunger clock starts when that first card grows (section 7).
 
 ----------------------------------------------------------------
 7. HUNGER (zombies)
 ----------------------------------------------------------------
 
-   A zombie must bite someone at least every 60 SECONDS (1 minute).
-   If not, they start STARVING:
-     - every 40 seconds they flare green for a moment,
-     - a hungry growl from their room is announced every 40 seconds.
-   A bite feeds them and resets the clock.
+   Hunger only runs while a zombie HOLDS a Zombie card. Once the
+   card grows, they must use it on someone within 20 SECONDS.
+   If not, they are STARVING (one state, one sign): every 20 seconds
+   they growl (announced, with their room) and flare green for a
+   moment, both at the same time.
+   A bite feeds them: no hunger until the next card grows.
+   (Old zombies start with their card, so their clock starts at once.)
 
 
 ----------------------------------------------------------------
@@ -266,6 +342,10 @@ STEP 4 - RESULT
 
    The red EMERGENCY BUTTON is in the CENTRAL HALL (floor 2).
      - Each player can call ONE meeting per match.
+     - BODY REPORTS (v3): stand next to a shot body and press REPORT.
+       It calls a meeting WITHOUT using your Emergency Button. Each
+       body can be reported once. The meeting says who found whom and
+       where (never the dead player's role).
      - No meeting in the first 30 seconds, or within 30 seconds of the
        last one.
    Everyone still in the match is pulled into the hall (Cure users
@@ -283,8 +363,8 @@ STEP 4 - RESULT
       A tie, or as many skips as the top votes = nobody goes.
 
    GAGGED PLAYERS (cure-quarantined users and freshly cured zombies)
-   cannot use quick-chat or vote until their 60 seconds are over.
-   A player inside the 60-second cure quarantine cannot be voted out.
+   cannot use quick-chat or vote until their 30 seconds are over.
+   A player inside the 30-second cure quarantine cannot be voted out.
 
 
 ----------------------------------------------------------------
@@ -306,6 +386,12 @@ STEP 4 - RESULT
      used a Cure on a zombie... or something else is going on.
    - Zombies duel each other too (fake duels), so "they never duel
      each other" is NOT a clue.
+   - LIGHTNING (every 90 seconds) lights every room for a moment:
+     you see everyone's silhouette, even in dark rooms.
+   - SECURITY CAMERAS (Lobby) show the last 5 room entries.
+   - A player who carries a generator part for ages and never fits it
+     may be a zombie hiding it.
+   - A right bluff call on a Zombie card is proof (only you see it).
 
 
 ----------------------------------------------------------------
@@ -337,8 +423,13 @@ STEP 4 - RESULT
   Accept a challenge      Y                     ACCEPT button
   Run from a challenge    N                     RUN button
   Look at a card          1 to 9                Tap the card
-  Emergency button        SPACE (at the         Round button left of
-                            station)              the CHALLENGE button
+  Use a station           SPACE (at the         Round button left of
+  (meeting, report, part,   station)              the CHALLENGE button
+   generator, breaker,
+   cameras)
+  Bluff call in a duel    Z / G / C             CALL buttons
+  Emotes                  1 HELLO 2 FOLLOW ME   Buttons on the right
+                          3 SUS! 4 HELP!        edge
   Open the big map        M                     Tap the small map
 
 
@@ -357,8 +448,15 @@ STEP 4 - RESULT
    LIGHTS: only the room you are in is fully lit. Rooms next to you
    are dim. Far rooms are dark, so you cannot see who is inside.
 
+   FLOORS: Basement "The Vats", Ground "Street Level", Floor 2
+   "The Core", Floor 3 "The Labs".
+
    10 DUEL TABLES (glowing blue, marked "DUEL") on every floor.
    EMERGENCY BUTTON: Central Hall.
+   GENERATOR: Reactor (basement). Fit the power parts here.
+   BREAKER: Server Room (basement). Zombies only: the Blackout.
+   SECURITY CAMERAS: Lobby (ground floor).
+   EVAC POINT: Entrance (ground floor, far left).
    QUARANTINE CELL: basement, far right. It holds two kinds of
    prisoners: voted-out players (permanent) and cure users
    (temporary, marked with a light).
@@ -374,7 +472,10 @@ STEP 4 - RESULT
      Shoot only someone you are sure about.
    - You carry a Gun OR a Cure, never both. A Cure must be PLAYED
      on a zombie; it never protects you. Curing someone costs you
-     60 seconds in quarantine. Use it when it is worth it.
+     30 seconds in quarantine. Use it when it is worth it.
+   - Fit generator parts: 4 parts = the evac truck. Go to the
+     Entrance together when it comes.
+   - Think someone is a zombie and have no Gun? Bluff call ZOMBIE.
    - Running can save your life. Head for a ladder.
    - Watch for green flickers, twitching and glowing footprints.
    - A bite turns you at once, so avoid duels with anyone you
@@ -391,7 +492,11 @@ STEP 4 - RESULT
      anywhere.
    - Do not go hungry: starving zombies growl and flare green.
    - Duel your fellow zombies in front of humans. It looks normal.
-   - If someone is quarantined for 60 seconds, use the time to spread.
+   - If someone is quarantined for 30 seconds, use the time to spread.
+   - Pick up a generator part and sit on it: humans can't fit it.
+   - Save the Blackout for when you hold a Zombie card.
+   - When the evac comes, crowd the Entrance: humans need to
+     outnumber you there.
 
 
 ----------------------------------------------------------------
@@ -400,9 +505,76 @@ STEP 4 - RESULT
 
    - Online multiplayer with friends (next phase), with real chat in
      meetings.
-   - Safe Handshake, extra roles (Medic, Detective, Traitor) and an
-     end-of-match recap.
-   - Events: Lights Out, Lockdown, Reactor Meltdown, Broadcast.
+   - The 10-second TALK before a duel (section 4, step 3): voice and
+     messages between the two duelists come with online play. The
+     game vs bots still goes straight to picking a card.
+   - Safe Handshake and extra roles (Medic, Detective, Traitor).
+   - Events: Lockdown, Reactor Meltdown, Broadcast.
+   - Bots that use the security cameras.
    - Zombies using vents.
+
+
+----------------------------------------------------------------
+15. RESTORE POWER, BLACKOUT, CAMERAS  (v3)
+----------------------------------------------------------------
+
+   RESTORE POWER (the humans' second way to win)
+     - 4 GENERATOR PARTS (glowing amber canisters) are hidden in
+       random rooms each match.
+     - Stand next to one and press SPACE, then STAND STILL for
+       4 seconds to pick it up. You carry one at a time, and
+       EVERYONE can see who carries one.
+     - Take it to the GENERATOR in the Reactor (basement), press
+       SPACE and stand still 4 seconds to fit it: +10 points.
+       Everyone is told a part was fitted (not by whom).
+     - Anyone can pick up a part, zombies too: a zombie can hide one
+       by never fitting it.
+     - A carrier who is SHOT drops the part on the spot; a carrier
+       who is VOTED OUT loses it back to where it was found. Bitten
+       carriers keep it.
+     - All 4 fitted = POWER RESTORED: the EVAC TRUCK reaches the
+       ENTRANCE 90 seconds later (meetings pause the countdown).
+     - When it arrives: if at least 1 human is in the Entrance and
+       there are MORE humans than zombies inside, the HUMANS WIN.
+       Otherwise the truck leaves and the match goes on.
+
+   BLACKOUT (the zombies' sabotage)
+     - Once per match, any zombie at the BREAKER in the Server Room
+       can cut the power (not in the first 45 seconds).
+     - For 15 seconds every room is dark for humans, including their
+       own. Zombies see normally. Everyone is told "BLACKOUT".
+
+   SECURITY CAMERAS (Lobby)
+     - Press SPACE at the desk to see the last 5 room entries (who
+       went where, and how long ago). 10 seconds between uses.
+
+
+----------------------------------------------------------------
+16. EXTRAS  (v3)
+----------------------------------------------------------------
+
+   EMOTES: HELLO, FOLLOW ME, SUS! (names the nearest player) and
+     HELP!, shown over your head. Bots nearby notice them.
+   GHOST: once you are shot or voted out you walk on as a
+     see-through ghost. Every room is lit for you. Nobody can see or
+     hear you.
+   LIGHTNING: every 90 seconds a big strike lights every room for a
+     moment (section 9).
+   MATCH RECAP: on the results screen, RECAP shows the whole match as
+     a timeline, secrets included (bites, shots, votes, parts).
+   MODIFIERS (menu): OFF, DAILY (the same one for everyone that day),
+     or a fixed one:
+       Double Guns   twice as many humans start with a Gun
+       Pitch Black   every room darker, everyone sees less
+       Fast Claws    Zombie cards grow back 25% faster
+       Extra Cures   twice as many Cures in the supply
+   RANKS: every match gives XP = your score (at least 0) + 50 for a
+     win. Rookie 0, Orderly 300, Researcher 800, Specialist 1600,
+     Director 3000. Each rank unlocks 3 more neon colours (menu).
+   BADGES (results screen): Detective (your vote helped send a zombie
+     out), Silent Killer (2+ bites, never accused), Sharpshooter (shot
+     a zombie, never a human), Engineer (2+ parts fitted), Mind Reader
+     (a right bluff call), Survivor (human from start to end, never
+     bitten).
 
 ================================================================

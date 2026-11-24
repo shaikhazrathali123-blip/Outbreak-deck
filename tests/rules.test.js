@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { numberCard, zombieCard, gunCard, cureCard, createDeck, createRng } from '../shared/cards.js';
 import { resolveDuel } from '../shared/duel.js';
 import { Match, assignRoles, tallyVotes } from '../shared/match.js';
-import { RULES } from '../shared/constants.js';
+import { RULES, lobbyRules } from '../shared/constants.js';
 
 const make = (roles) =>
   new Match({ seed: 3, players: roles.map((role, i) => ({ id: `p${i + 1}`, name: `P${i + 1}`, color: '#fff', role })) });
@@ -74,18 +74,20 @@ test('roles: 1 / 2 / 3 infected by lobby size', () => {
   assert.deepEqual([count(6), count(8), count(9), count(12), count(13), count(15)], [1, 1, 2, 2, 3, 3]);
 });
 
-test('a zombie holds ONE Zombie card; after a bite the next grows 40s later', () => {
+test('a zombie holds ONE Zombie card; after a bite the next grows zombieRegen() later (one time per lobby size)', () => {
   const m = make(['infected', 'human', 'human']);
   const p = m.get('p1');
   assert.equal(m.zombieCount(p), 1, 'starts with one');
   const grew = (t) => m.tick(t).filter((e) => e.type === 'zombie-grew').map((e) => e.player);
   assert.deepEqual(grew(500000), [], 'never more than one, however long you wait');
-  // bite at t=1000: the card is used, the next one grows at 1000 + 40s
+  // bite at t=1000: the card is used; the biter and the new zombie both grow one zombieRegen() later
   hand(m, 'p2', [numberCard(5)]);
   m.settleDuel('p1', 'p2', m.firstOf('p1', 'zombie').id, m.get('p2').hand[0].id, 1000);
   assert.equal(m.zombieCount(p), 0);
-  assert.deepEqual(grew(1000 + RULES.zombieRegen - 1), []);
-  assert.deepEqual(grew(1000 + RULES.zombieRegen).sort(), ['p1', 'p2'], 'the biter, and the new zombie 40s after turning');
+  const regrow = lobbyRules(3).zombieRegen;
+  assert.equal(m.zombieRegen(), regrow);
+  assert.deepEqual(grew(1000 + regrow - 1), []);
+  assert.deepEqual(grew(1000 + regrow).sort(), ['p1', 'p2'], 'the biter, and the new zombie');
   assert.equal(m.zombieCount(p), 1);
 });
 
@@ -108,10 +110,23 @@ test('a bite turns the human AT ONCE; the biter is fed', () => {
   const out = m.settleDuel('p1', 'p2', z.id, b.id, 500);
   assert.ok(out.effects.some((e) => e.type === 'bitten' && e.player === 'p2'));
   assert.equal(m.get('p2').role, 'infected');
-  assert.equal(m.zombieCount(m.get('p2')), 0, 'no Zombie card yet: it grows 40s after turning');
+  assert.equal(m.zombieCount(m.get('p2')), 0, 'no Zombie card yet: it grows 75s+ after turning');
   assert.ok(m.get('p2').hand.includes(b), 'they keep their number card');
-  assert.equal(m.get('p1').hungerAt, 500 + RULES.hunger);
-  assert.equal(m.get('p2').hungerAt, 500 + RULES.hunger, 'their own hunger starts now');
+  assert.equal(m.get('p1').hungerAt, null, 'fed: no hunger until the next Zombie card grows');
+  assert.equal(m.get('p2').hungerAt, null, 'no hunger before their first Zombie card');
+});
+
+test('hunger only runs while holding a Zombie card: it starts when the card grows', () => {
+  const m = make(['infected', 'human', 'human']);
+  const z = m.firstOf('p1', 'zombie');
+  const [b] = hand(m, 'p2', [numberCard(9)]);
+  m.settleDuel('p1', 'p2', z.id, b.id, 1000);
+  const grow = m.get('p1').nextZombieAt;
+  assert.ok(!m.tick(1000 + RULES.hunger + 1).some((e) => e.type === 'starving'), 'no starving while the card regrows');
+  assert.ok(m.tick(grow).some((e) => e.type === 'zombie-grew' && e.player === 'p1'));
+  assert.equal(m.get('p1').hungerAt, grow + RULES.hunger);
+  assert.equal(m.get('p2').hungerAt, grow + RULES.hunger, 'the new zombie grew theirs at the same time');
+  assert.ok(m.tick(grow + RULES.hunger).some((e) => e.type === 'starving' && e.player === 'p1'));
 });
 
 test('a bitten Gun holder loses the Gun: it goes secretly to a human holding no Gun or Cure', () => {
@@ -190,11 +205,13 @@ test('Cure played on a human: wasted, you lose, no cell', () => {
   assert.ok(!has(m, 'p2', 'cure'));
 });
 
-test('in the cell: no duels, no meetings, can\'t be voted out, released after 60s', () => {
+test('in the cell: no duels, no meetings, can\'t be voted out, released after 30s', () => {
+  assert.equal(RULES.cureQuarantine, 30000);
   const m = make(['infected', 'human', 'human']);
   m.sendToCell(m.get('p2'), 0);
+  m.meetingReadyAt = 0;
   assert.equal(m.canChallenge('p1', 'p2', 10).reason, 'target-in-cell');
-  assert.equal(m.canCallMeeting('p2', RULES.meetingFirstDelay).reason, 'in-cell');
+  assert.equal(m.canCallMeeting('p2', 10).reason, 'in-cell');
   assert.ok(!m.canBeVoted('p2', 10) && !m.canVote('p2', 10));
   assert.ok(m.tick(RULES.cureQuarantine).some((e) => e.type === 'released' && e.player === 'p2'));
   assert.ok(m.canBeVoted('p2', RULES.cureQuarantine));
@@ -212,14 +229,14 @@ test('a freshly cured player cannot be bitten while recovering', () => {
 });
 
 // ------------------------------------------------------------------ guns
-test('Gun kills a zombie: shot is public, shooter stunned 8s, one bullet used', () => {
+test('Gun kills a zombie: shot is public, no stun for the shooter (v3), one bullet used', () => {
   const m = make(['infected', 'human', 'human']);
   const z = m.firstOf('p1', 'zombie');
   const [g] = hand(m, 'p2', [gunCard(), numberCard(3)]);
   const out = m.settleDuel('p2', 'p1', g.id, z.id, 100);
   assert.equal(m.get('p1').alive, false);
   assert.ok(out.effects.some((e) => e.type === 'killed' && e.player === 'p1'));
-  assert.equal(m.get('p2').stunnedUntil, 100 + RULES.shotStun);
+  assert.equal(m.get('p2').stunnedUntil, 0);
   assert.equal(m.firstOf('p2', 'gun').bullets, 1);
   assert.equal(m.winner(), 'humans');
 });
@@ -258,8 +275,8 @@ test('two infected duel: a fake duel, both keep their cards', () => {
   assert.ok(m.get('p2').hand.includes(n));
 });
 
-test('hunger: starving after 60s without a bite, then growls (and flares) every RULES.growlEvery', () => {
-  assert.equal(RULES.hunger, 60000);
+test('hunger: starving after RULES.hunger holding the Zombie card, then growls (and flares) every RULES.growlEvery', () => {
+  assert.equal(RULES.hunger, 20000);
   const m = make(['infected', 'human']);
   assert.ok(!m.isStarving('p1', RULES.hunger - 1));
   assert.ok(m.tick(RULES.hunger).some((e) => e.type === 'starving'));
@@ -335,4 +352,15 @@ test('infected win once no human is left', () => {
   const [n] = hand(m, 'p2', [numberCard(1)]);
   m.settleDuel('p1', 'p2', z.id, n.id, 0);
   assert.equal(m.winner(), 'infected');
+});
+
+test('v3: the Zombie card regrow is one number per lobby size, however many zombies are alive', () => {
+  const m = new Match({ seed: 3, players: ['infected', 'infected', 'infected', 'human'].map((role, i) => ({ id: `p${i + 1}`, name: `P${i + 1}`, color: '#fff', role })) });
+  assert.equal(m.zombieRegen(), lobbyRules(4).zombieRegen);
+  m.quarantine('p3');
+  assert.equal(m.zombieRegen(), lobbyRules(4).zombieRegen);
+  m.startZombieRegrow(m.get('p1'), 1000);
+  assert.equal(m.get('p1').nextZombieAt, 1000 + lobbyRules(4).zombieRegen);
+  const fast = new Match({ seed: 3, rules: { zombieRegen: 1234 }, players: ['infected', 'human'].map((role, i) => ({ id: `p${i + 1}`, name: `P${i + 1}`, color: '#fff', role })) });
+  assert.equal(fast.zombieRegen(), 1234, 'a match modifier overrides it');
 });

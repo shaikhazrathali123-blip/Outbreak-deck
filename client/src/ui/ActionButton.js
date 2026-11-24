@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT, UI } from './HUD.js';
+import sfx from '../audio/Sfx.js';
 
 const IDLE = 0x5a606c;
 
@@ -28,7 +29,9 @@ export default class ActionButton {
   }
 
   press() {
-    if (this.root.visible && this.enabled) this.onPress?.();
+    if (!this.root.visible || !this.enabled) return;
+    sfx.play('tap');
+    this.onPress?.();
   }
 
   layout(width, height) {

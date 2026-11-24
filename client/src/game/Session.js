@@ -1,16 +1,25 @@
 import Phaser from 'phaser';
-import { PLAYER_COLORS, RULES, PLAYER_SPEED, ROOMS as ROOM_INFO } from '../../../shared/constants.js';
+import { PLAYER_COLORS, RULES, PLAYER_SPEED, ROOMS as ROOM_INFO, MODIFIERS, dailyModifier, lobbyRules } from '../../../shared/constants.js';
 import { Match, assignRoles, tallyVotes } from '../../../shared/match.js';
 import { createRng } from '../../../shared/cards.js';
-import { ORIGIN_X, FLOORS, ROOMS, DUEL_TABLES, SUPPLY_BOXES, EMERGENCY_BUTTON } from '../side/facility.js';
+import {
+  ORIGIN_X, FLOORS, ROOMS, DUEL_TABLES, SUPPLY_BOXES, EMERGENCY_BUTTON,
+  GENERATOR, BREAKER, SECURITY_DESK, EVAC_ROOM, PART_SPOTS,
+} from '../side/facility.js';
 import Actor from '../side/Actor.js';
 import BotBrain from './BotBrain.js';
+import sfx from '../audio/Sfx.js';
 
 const YOU = 'you';
 const BOT_DUEL_TIME = 2600;
 const ESCAPE_COOLDOWN = 4000; // after a chase, neither can be challenged again straight away
 
 const rand = (a, b) => a + Math.random() * (b - a);
+const POINT_REASONS = {
+  'vote-right': 'your vote was right', 'vote-wrong': 'your vote was wrong', part: 'part fitted',
+  stealth: 'never accused', 'last-stand': 'Last Stand', 'call-right': 'right call', 'call-wrong': 'wrong call',
+};
+export const EMOTES = { hello: 'HELLO', follow: 'FOLLOW ME', sus: 'SUS!', help: 'HELP!' };
 
 /**
  * One match (rules: GAME_GUIDE.txt): players (you + bots), roles, the shared Match rules,
@@ -24,13 +33,24 @@ export default class Session {
   constructor(scene, settings = {}) {
     this.scene = scene;
     this.settings = { bots: 7, difficulty: 'normal', minutes: RULES.matchMinutes, ...settings };
-    const params = new URLSearchParams(window.location.search);
-    const seed = Number(params.get('seed')) || Date.now();
+    // sim: a headless balance run (tools/simulate.js): a bot plays your seat too, nothing waits for input
+    this.sim = !!this.settings.sim;
+    const params = new URLSearchParams(this.sim ? '' : window.location.search);
+    const seed = this.settings.seed ?? (Number(params.get('seed')) || Date.now());
     const rng = createRng(seed + 1);
     const now = this.now();
 
     // --- players and roles
     const count = Phaser.Math.Clamp(this.settings.bots, 1, 14) + 1;
+    // v3: one optional match modifier (OFF / DAILY / a fixed one)
+    const mod = this.settings.modifier === 'daily' ? dailyModifier() : MODIFIERS[this.settings.modifier] ? this.settings.modifier : null;
+    this.modifier = mod;
+    const lobby = lobbyRules(count);
+    const rules = {};
+    if (mod === 'double-guns') rules.startGunShare = lobby.startGunShare * 2;
+    if (mod === 'fast-claws') rules.zombieRegen = Math.round(lobby.zombieRegen * 0.75);
+    if (mod === 'extra-cures') rules.deckCures = RULES.deckCures * 2;
+    this.pitchBlack = mod === 'pitch-black';
     const ids = [YOU, ...Array.from({ length: count - 1 }, (_, i) => `p${i + 2}`)];
     const roles = assignRoles(ids, rng);
     const want = params.get('role');
@@ -38,8 +58,13 @@ export default class Session {
       const other = ids.find((id) => id !== YOU && roles[id] === want);
       if (other) [roles[YOU], roles[other]] = [want, roles[YOU]];
     }
-    const players = ids.map((id, i) => ({ id, name: id === YOU ? 'YOU' : `P${i + 1}`, color: PLAYER_COLORS[i % PLAYER_COLORS.length], role: roles[id] }));
-    this.match = new Match({ players, seed, now });
+    // your neon colour (unlocked by rank in the menu): whoever had it gets yours
+    const colors = ids.map((_, i) => PLAYER_COLORS[i % PLAYER_COLORS.length]);
+    const mine = colors.indexOf(this.settings.color);
+    if (mine > 0) [colors[0], colors[mine]] = [colors[mine], colors[0]];
+    const players = ids.map((id, i) => ({ id, name: id === YOU ? 'YOU' : `P${i + 1}`, color: colors[i], role: roles[id] }));
+    this.match = new Match({ players, seed, now, rules });
+    this.match.setupParts(PART_SPOTS);
     if (params.has('hand')) this.match.get(YOU).hand.splice(Math.max(0, Number(params.get('hand'))));
 
     // --- everyone spawns spread across the Central Hall
@@ -52,7 +77,7 @@ export default class Session {
       const x = ORIGIN_X + hall.x0 + 50 + ((hall.x1 - hall.x0 - 100) * (slot + 0.5)) / count;
       const actor = new Actor(scene, { ...p, floor: hall.floor, x, isYou: p.id === YOU });
       this.actors.set(p.id, actor);
-      if (p.id !== YOU) {
+      if (p.id !== YOU || this.sim) {
         const brain = new BotBrain(this, actor, this.settings.difficulty);
         brain.nextThink = now + 1500 + Math.random() * 3000;
         this.brains.set(p.id, brain);
@@ -72,6 +97,20 @@ export default class Session {
     this.meetingQueued = null; // caller id, while your duel screen is still open
     this.nextWatchdog = 0;
     this.refillRing = scene.add.graphics().setDepth(12);
+    // v3
+    this.work = new Map(); // id -> { kind: 'pick'|'fit', target, ms }: standing still at a station
+    this.timeline = []; // the end-of-match recap
+    this.roomLog = []; // security cameras: { id, room, at }
+    this.lastRoom = new Map();
+    this.cameraReadyAt = 0;
+    this.revealUntil = 0; // Last Stand: the zombies glow red for you until then
+    this.ghost = null; // you after you are out: a ghost that can look around
+    this.bubbles = new Map(); // emote bubbles: id -> { text, until }
+    this.emoteAt = new Map();
+    this.blackoutOn = false;
+    this.evacWarned = false;
+    this.nextLightning = now + RULES.lightningEvery;
+    this.partViews = new Map(this.match.parts.map((p) => [p.id, this.makePartView()]));
     this.startedAt = now;
     this.endsAt = now + this.settings.minutes * 60000;
     this.over = false;
@@ -92,6 +131,20 @@ export default class Session {
 
   emit(...args) {
     this.scene.events.emit(...args);
+  }
+
+  /**
+   * Play a sound effect (never in the headless simulator). With `at` (an actor) it is quieter
+   * the further it is from you: same room loud, other floors faint.
+   */
+  sound(name, at = null, vol = 1) {
+    if (this.sim) return;
+    if (at) {
+      const v = this.view;
+      const d = Math.abs(at.x - v.x) / 1600 + Math.abs(at.floor() - v.floor()) * 0.35;
+      vol *= Math.max(0.25, Math.min(1, 1 - d * 0.7));
+    }
+    sfx.play(name, vol);
   }
 
   /** Message for you only (other players' secrets stay secret). */
@@ -115,16 +168,52 @@ export default class Session {
     return this.actors.get(id)?.name ?? id;
   }
 
+  /** Id of the room an actor (or a { floor, x } spot) is in, or null. */
+  roomOf(actor) {
+    const floor = typeof actor.floor === 'function' ? actor.floor() : actor.floor;
+    const px = actor.x - ORIGIN_X;
+    return ROOMS.find((q) => q.floor === floor && px >= q.x0 && px < q.x1)?.id ?? null;
+  }
+
   /** Name of the room an actor stands in. */
   roomName(actor) {
-    const px = actor.x - ORIGIN_X;
-    const r = ROOMS.find((q) => q.floor === actor.floor() && px >= q.x0 && px < q.x1);
-    return ROOM_INFO.find((i) => i.id === r?.id)?.name ?? 'facility';
+    const id = this.roomOf(actor);
+    return ROOM_INFO.find((i) => i.id === id)?.name ?? 'facility';
+  }
+
+  /** Match clock since the start (meetings excluded), for the recap and the cameras. */
+  elapsed() {
+    return this.settings.minutes * 60000 - this.timeLeft();
+  }
+
+  /** One line of the end-of-match recap (it may name secrets: only shown after the match). */
+  log(text, color = '#c9ced8') {
+    this.timeline.push({ t: this.elapsed(), text, color });
+  }
+
+  /** How far a bot sees: less in Pitch Black, much less for humans in a Blackout. */
+  sightOf(brain) {
+    let sight = brain.cfg.sight * (this.pitchBlack ? 0.6 : 1);
+    if (this.match.isBlackout(this.clock()) && this.match.get(brain.a.id).role === 'human') sight *= 0.35;
+    return sight;
   }
 
   /** Living bots that can see `actor` (same floor, in sight). */
   witnesses(actor) {
-    return [...this.brains.values()].filter((b) => b.a !== actor && this.alive(b.a.id) && b.a.floor() === actor.floor() && Math.abs(b.a.x - actor.x) < b.cfg.sight);
+    return [...this.brains.values()].filter((b) => b.a !== actor && this.alive(b.a.id) && b.a.floor() === actor.floor() && Math.abs(b.a.x - actor.x) < this.sightOf(b));
+  }
+
+  /** The actor the camera follows: you, or your ghost once you are out. */
+  get view() {
+    return this.ghost ?? this.you;
+  }
+
+  /** Points banked outside a duel: tell yourself (only yours). */
+  showPoints(effects) {
+    for (const e of effects) {
+      if (e.type === 'points' && e.player === YOU) this.sound(e.amount > 0 ? 'pointsUp' : 'pointsDown');
+      if (e.type === 'points' && e.player === YOU) this.emit('toast', `${e.amount > 0 ? '+' : ''}${e.amount} POINTS  ·  ${POINT_REASONS[e.reason] ?? e.reason}`, e.amount > 0 ? '#3ee6a0' : '#ff5a68', 3500);
+    }
   }
 
   alive(id) {
@@ -197,8 +286,12 @@ export default class Session {
     to.face(from.x);
     from.anim('idle');
     to.anim('idle');
-    if (fromId === YOU) this.emit('toast', `Challenging ${to.name}…`, to.color, 1500);
-    if (toId === YOU) {
+    if (fromId === YOU) {
+      this.emit('toast', `Challenging ${to.name}…`, to.color, 1500);
+      this.sound('challenge');
+    }
+    if (toId === YOU && !this.sim) {
+      this.sound('challenged');
       this.pending = { from: fromId, expires: this.now() + RULES.answerTime };
       this.emit('challenge-request', { name: from.name, color: from.color, ms: RULES.answerTime });
     } else {
@@ -229,6 +322,7 @@ export default class Session {
     if (fromId === YOU || toId === YOU) {
       const other = this.actors.get(fromId === YOU ? toId : fromId);
       this.emit('toast', `Duel with ${other.name}. To the table!`, other.color, 2000);
+      this.sound('accept');
     }
     this.goToTable(fromId, toId);
   }
@@ -248,6 +342,7 @@ export default class Session {
     this.chases.push(chase);
     this.brains.get(chaserId)?.startChase(runnerId);
     this.brains.get(runnerId)?.startFleeing(chase.chaser);
+    if (runnerId === YOU || chaserId === YOU) this.sound('run');
     if (runnerId === YOU) this.emit('chase', { role: 'runner', name: chase.chaser.name, color: chase.chaser.color, until: chase.until });
     if (chaserId === YOU) this.emit('chase', { role: 'chaser', name: chase.runner.name, color: chase.runner.color, until: chase.until, startAt: chase.startAt });
     this.scene.cameras.main.shake(180, 0.004);
@@ -274,13 +369,17 @@ export default class Session {
         // caught: the duel is forced
         if (yours) {
           this.emit('toast', runner.id === YOU ? `CAUGHT by ${chaser.name}!` : `You caught ${runner.name}!`, '#ff4a5a', 2200);
+          this.sound('caught');
           this.scene.cameras.main.shake(260, 0.01);
         }
         this.busy.add(chaser.id).add(runner.id);
         this.goToTable(chaser.id, runner.id);
       } else {
         for (const p of [chaser, runner]) this.match.get(p.id).cooldownUntil = Math.max(this.match.get(p.id).cooldownUntil, now + ESCAPE_COOLDOWN);
-        if (runner.id === YOU) this.emit('toast', 'You got away!', '#3ee6d0');
+        if (runner.id === YOU) {
+          this.emit('toast', 'You got away!', '#3ee6d0');
+          this.sound('escaped');
+        }
         if (chaser.id === YOU) this.emit('toast', `${runner.name} got away`, '#c9ced8');
       }
     }
@@ -308,7 +407,7 @@ export default class Session {
       this.approaches.splice(this.approaches.indexOf(ap), 1);
       ap.a.face(ap.b.x);
       ap.b.face(ap.a.x);
-      if (ap.a.id === YOU || ap.b.id === YOU) {
+      if (!this.sim && (ap.a.id === YOU || ap.b.id === YOU)) {
         // reserve the duel now, so nobody else grabs either player before the screen opens
         this.yourDuel = { ids: [ap.a.id, ap.b.id], table: ap.table };
         this.scene.time.delayedCall(250, () => this.startYourDuel(ap));
@@ -332,15 +431,15 @@ export default class Session {
       youId: YOU,
       table: ap.table,
       now: () => this.now(),
-      opp: { id: opp.id, name: opp.name, color: opp.color, pickCard: () => brain.pickCard(YOU) },
+      opp: { id: opp.id, name: opp.name, color: opp.color, pickCard: () => brain.pickCard(YOU), pickCall: () => brain.pickCall(YOU) },
       onDone: (out) => {
         this.yourDuel = null;
         this.emit('duel-open', false);
         this.afterDuel(YOU, opp.id, out);
         if (this.meetingQueued && !this.over) {
-          const caller = this.meetingQueued;
+          const { caller, body } = this.meetingQueued;
           this.meetingQueued = null;
-          this.startMeeting(caller);
+          this.startMeeting(caller, body);
         }
       },
     });
@@ -351,14 +450,21 @@ export default class Session {
     for (const d of [...this.botDuels]) {
       if (now < d.until) continue;
       this.botDuels.splice(this.botDuels.indexOf(d), 1);
-      const ca = this.brains.get(d.a.id).pickCard(d.b.id);
-      const cb = this.brains.get(d.b.id).pickCard(d.a.id);
+      const ba = this.brains.get(d.a.id);
+      const bb = this.brains.get(d.b.id);
+      const ca = ba?.pickCard(d.b.id);
+      const cb = bb?.pickCard(d.a.id);
       if (!ca || !cb || !this.match.canChallenge(d.a.id, d.b.id, now).ok) {
         this.busy.delete(d.a.id);
         this.busy.delete(d.b.id);
         continue;
       }
-      this.afterDuel(d.a.id, d.b.id, this.match.settleDuel(d.a.id, d.b.id, ca.id, cb.id, now));
+      const calls = {};
+      const callA = ba.pickCall(d.b.id);
+      const callB = bb.pickCall(d.a.id);
+      if (callA) calls[d.a.id] = callA;
+      if (callB) calls[d.b.id] = callB;
+      this.afterDuel(d.a.id, d.b.id, this.match.settleDuel(d.a.id, d.b.id, ca.id, cb.id, now, calls));
     }
   }
 
@@ -377,6 +483,10 @@ export default class Session {
         else this.brains.get(e.to)?.noteClue(e.about, e.genuine);
       }
       if (e.type === 'stunned') this.toastFor(e.player, `You are stunned for ${RULES.stunTime / 1000} seconds`, '#ffb04a', 4000);
+      if (e.type === 'called') {
+        this.log(`${this.name(e.player)} called ${this.name(e.against)}'s ${e.card.toUpperCase()} card and cancelled it.`, '#ffd27a');
+        this.brains.get(e.player)?.noteCalled(e.against, e.card);
+      }
     }
     if (aId === YOU || bId === YOU) this.emit('hand-changed');
     this.checkWin();
@@ -386,6 +496,10 @@ export default class Session {
   onKilled(id, by) {
     const a = this.actors.get(id);
     const shooter = this.actors.get(by);
+    this.log(`${this.name(by)} shot ${this.name(id)} (${this.match.get(id).role === 'infected' ? 'a zombie' : 'a human'}).`, '#ff7a3a');
+    const dropped = this.match.dropPart(id, { floor: a.floor(), x: a.x });
+    if (dropped) this.emit('toast', 'A generator part fell to the floor.', '#ffb04a', 3500);
+    this.work.delete(id);
     a.sprite.anims.stop();
     a.sprite.setTint(0x6a707c).setFlipX(false);
     if (a.glow) a.sprite.preFX?.remove(a.glow);
@@ -396,15 +510,19 @@ export default class Session {
     this.brains.delete(id);
     for (const b of this.brains.values()) b.onShot(by, id);
     this.emit('toast', `☠ ${this.name(by)} shot ${this.name(id)}.`, '#ff7a3a', 5000);
-    this.toastFor(by, `You are stunned for ${RULES.shotStun / 1000} seconds after the shot`, '#ffb04a', 3500);
+    if (by !== YOU && id !== YOU) this.sound('gunshot', a); // your own shot is heard in the duel screen
+    if (RULES.shotStun > 0) this.toastFor(by, `You are stunned for ${RULES.shotStun / 1000} seconds after the shot`, '#ffb04a', 3500);
     if (id === YOU) {
       this.emit('you-died', { by: shooter.name });
       this.scene.cameras.main.shake(400, 0.015);
+      this.sound('death');
+      this.makeGhost();
     }
   }
 
   /** A Zombie card bit a human: they are a zombie now. Nobody else is told. */
   onBitten(id, by) {
+    this.log(`${this.name(by)} bit ${this.name(id)}: a zombie now.`, '#3ee67a');
     const hunter = this.brains.get(by);
     if (hunter) hunter.lurkUntil = this.now() + hunter.cfg.lurk;
     this.brains.get(id)?.onTurned();
@@ -418,12 +536,14 @@ export default class Session {
 
   /** A Cure hit a zombie: human again, gagged 60s, recovering 20s. They aren't told who did it. */
   onCured(id, by) {
+    this.log(`${this.name(by)} cured ${this.name(id)}: human again.`, '#3e8bff');
     this.brains.get(id)?.onCured();
     if (id === YOU) {
       this.emit('role-changed', 'human');
       this.emit('hand-changed');
       this.emit('toast', 'You were CURED. You are human again, and you forget the other zombies.', '#3e8bff', 6000);
       this.emit('toast', `You are gagged for ${RULES.gagTime / 1000}s: no quick-chat, no voting.`, '#c9ced8', 6000);
+      if (this.match.partCarried(YOU)) this.emit('toast', 'You are still carrying a generator part: fit it at the Reactor.', '#ffb04a', 5000);
     }
     this.updateGlows();
   }
@@ -440,6 +560,7 @@ export default class Session {
     a.anim('idle');
     this.brains.get(id)?.toCell();
     this.emit('toast', '⛔ A player was quarantined.', '#ff9a5a', 4000);
+    this.sound('cell', null, id === YOU ? 1 : 0.5);
     if (id === YOU) {
       this.emit('toast', `Your Cure worked. You are in quarantine for ${RULES.cureQuarantine / 1000}s (gagged, can't move).`, '#3e8bff', 6000);
       this.scene.cameras.main.flash(300, 60, 120, 255);
@@ -448,7 +569,7 @@ export default class Session {
 
   youInfected(byId) {
     this.emit('role-changed', 'infected');
-    this.emit('toast', `${this.name(byId)} BIT you. You are a ZOMBIE now. Your first Zombie card grows in ${RULES.zombieRegen / 1000}s.`, '#3ee67a', 6000);
+    this.emit('toast', `${this.name(byId)} BIT you. You are a ZOMBIE now. Your first Zombie card grows in ${Math.round(this.match.zombieRegen() / 1000)}s.`, '#3ee67a', 6000);
     const allies = this.match.living('infected').filter((p) => p.id !== YOU).map((p) => this.name(p.id));
     if (allies.length) this.emit('toast', `Fellow infected: ${allies.join(', ')}`, '#3ee67a', 6000);
     this.scene.cameras.main.flash(500, 40, 200, 110);
@@ -458,18 +579,21 @@ export default class Session {
   updateGlows() {
     const now = this.now();
     const youInfected = this.match.get(YOU).role === 'infected';
+    const reveal = !youInfected && now < this.revealUntil; // Last Stand: you see every zombie for a moment
     for (const a of this.actors.values()) {
       const alive = this.alive(a.id);
       // a starving zombie only flares up for a moment, each time it growls
       const starving = alive && this.match.isStarving(a.id, now) && now < (a.growlFlashUntil ?? 0);
       const ally = a.id !== YOU && youInfected && alive && this.match.get(a.id).role === 'infected';
-      const want = starving ? 'starving' : ally ? 'ally' : null;
+      const shown = reveal && alive && this.match.get(a.id).role === 'infected';
+      const want = shown ? 'reveal' : starving ? 'starving' : ally ? 'ally' : null;
       if ((a.glowKind ?? null) === want) continue;
       if (a.glow) a.sprite.preFX?.remove(a.glow);
       a.glow = null;
       a.glowKind = want;
       if (want === 'starving') a.glow = a.sprite.preFX?.addGlow(0xb4ff3a, 6, 0, false, 0.1, 14);
       if (want === 'ally') a.glow = a.sprite.preFX?.addGlow(0x3ee67a, 3, 0, false, 0.1, 10);
+      if (want === 'reveal') a.glow = a.sprite.preFX?.addGlow(0xff3b4a, 6, 0, false, 0.1, 14);
     }
   }
 
@@ -479,10 +603,12 @@ export default class Session {
       const you = e.player === YOU;
       const actor = this.actors.get(e.player);
       if (e.type === 'zombie-grew' && you) {
+        this.sound('zombieGrew');
         this.emit('hand-changed');
         this.emit('toast', 'A new ZOMBIE card grew in your hand', '#3ee67a');
       }
       if (e.type === 'released') {
+        if (you) this.sound('escaped');
         this.brains.get(e.player)?.released();
         if (you) this.emit('toast', 'You are out of quarantine. Back to it.', '#3ee6d0', 3500);
       }
@@ -492,6 +618,7 @@ export default class Session {
       }
       if (e.type === 'growl' || e.type === 'starving') {
         this.emit('toast', `A hungry growl echoes from the ${this.roomName(actor)}…`, '#b4ff3a', 3500);
+        this.sound('growl', actor);
         actor.growlFlashUntil = this.now() + 2500;
         this.updateGlows();
         for (const b of this.witnesses(actor)) b.suspect(e.player, 2, `${actor.name} is glowing and growling. Starving zombie!`);
@@ -511,6 +638,15 @@ export default class Session {
     this.stepBotDuels();
     this.stepChases();
     this.onTick(this.match.tick(now));
+    this.updateBlackout(now);
+    this.updateEvac(now);
+    if (now >= this.nextLightning) {
+      // v3: a big strike lights every room for a moment: everyone's silhouette shows
+      this.nextLightning = now + RULES.lightningEvery;
+      this.emit('lightning');
+      this.sound('thunder');
+    }
+    if (this.ghost && !this.sim) this.ghost.control(youInput, dt, PLAYER_SPEED * 1.4);
 
     const inApproach = new Set(this.approaches.flatMap((a) => [a.a.id, a.b.id]));
     let youMoving = false;
@@ -524,7 +660,7 @@ export default class Session {
         if (chasing && now < chase.startAt) held = true; // the runner's head start
         speed *= chasing ? RULES.chaserSpeed : RULES.runnerSpeed;
       }
-      if (actor.id === YOU) {
+      if (actor.id === YOU && !this.sim) {
         youMoving = actor.control(held ? { x: 0, y: 0 } : youInput, dt, speed);
       } else {
         const brain = this.brains.get(actor.id);
@@ -540,6 +676,9 @@ export default class Session {
 
     this.refillRing.clear();
     this.updateRefills(dt, youMoving);
+    this.updateWork(dt, youMoving);
+    this.updateParts();
+    this.updateRoomLog();
     this.updateSigns(now);
     this.updateLabels(now);
     this.checkWin();
@@ -557,6 +696,280 @@ export default class Session {
     for (const id of [...this.busy]) if (!involved.has(id)) this.busy.delete(id);
   }
 
+  // ------------------------------------------------------------ v3: stations
+  /** What `actor` could use right here: a body, the generator, a part, the Emergency Button, the breaker, the security desk. */
+  stationFor(actor) {
+    if (actor.state.mode !== 'walk' || !this.alive(actor.id)) return null;
+    const near = (spot, range = RULES.stationRange) => spot.floor === actor.floor() && Math.abs(spot.x - actor.x) < range;
+    for (const o of this.actors.values()) {
+      const p = this.match.get(o.id);
+      if (p.shot && !p.reported && near({ floor: o.floor(), x: o.x }, RULES.reportRange)) return { kind: 'report', target: o.id };
+    }
+    const carrying = this.match.partCarried(actor.id);
+    if (carrying && near(GENERATOR, 90)) return { kind: 'fit', target: carrying.id };
+    if (!carrying) {
+      const part = this.match.parts.find((q) => q.at && !q.fitted && near(q.at));
+      if (part) return { kind: 'pick', target: part.id };
+    }
+    if (near(EMERGENCY_BUTTON, RULES.meetingRange)) return { kind: 'meeting' };
+    if (near(BREAKER) && this.match.get(actor.id).role === 'infected') return { kind: 'blackout' };
+    if (near(SECURITY_DESK)) return { kind: 'camera' };
+    return null;
+  }
+
+  /** 'meeting' when an actor stands at the Emergency Button, else null. */
+  stationAt(actor) {
+    if (actor.state.mode !== 'walk') return null;
+    const b = EMERGENCY_BUTTON;
+    return b.floor === actor.floor() && Math.abs(b.x - actor.x) < RULES.meetingRange ? 'meeting' : null;
+  }
+
+  /** The action button for you right now: { kind, label, note, enabled, color } or null. */
+  yourAction() {
+    if (this.meeting || this.over || !this.alive(YOU) || this.busy.has(YOU) || this.chaseOf(YOU)) return null;
+    if (this.work.has(YOU)) return { kind: 'work', label: 'WORKING', note: 'STAND STILL', enabled: false, color: '#ffb04a' };
+    const st = this.stationFor(this.you);
+    if (!st) return null;
+    const now = this.now();
+    const wait = (c) => (c.reason === 'in-cell' ? 'QUARANTINED' : c.reason === 'used' ? 'USED' : c.wait ? `WAIT ${Math.ceil(c.wait / 1000)}s` : 'NOT NOW');
+    if (st.kind === 'report') {
+      const c = this.match.canReport(YOU, st.target, now);
+      return { ...st, label: 'REPORT', note: this.meetingQueued ? 'CALLED' : c.ok ? 'BODY' : wait(c), enabled: c.ok && !this.meetingQueued, color: '#ff7a3a' };
+    }
+    if (st.kind === 'fit') return { ...st, label: 'FIT PART', note: 'GENERATOR', enabled: true, color: '#ffb04a' };
+    if (st.kind === 'pick') return { ...st, label: 'PICK UP', note: 'POWER PART', enabled: true, color: '#ffb04a' };
+    if (st.kind === 'meeting') {
+      const c = this.match.canCallMeeting(YOU, now);
+      return { ...st, label: 'MEETING', note: this.meetingQueued ? 'CALLED' : c.ok ? 'CALL MEETING' : wait(c), enabled: c.ok && !this.meetingQueued, color: '#ff3b4a' };
+    }
+    if (st.kind === 'blackout') {
+      const c = this.match.canBlackout(YOU, now);
+      return { ...st, label: 'BLACKOUT', note: c.ok ? 'CUT POWER' : wait(c), enabled: c.ok, color: '#b4ff3a' };
+    }
+    const ready = now >= this.cameraReadyAt;
+    return { ...st, label: 'CAMERAS', note: ready ? 'CHECK' : `WAIT ${Math.ceil((this.cameraReadyAt - now) / 1000)}s`, enabled: ready, color: '#9ab8ff' };
+  }
+
+  /** You pressed the action button (Space). */
+  doAction() {
+    const a = this.yourAction();
+    if (a?.enabled) this.useStation(YOU, a);
+  }
+
+  /** Use a station (you or a bot). */
+  useStation(id, st) {
+    if (st.kind === 'report') return this.reportBody(id, st.target);
+    if (st.kind === 'fit' || st.kind === 'pick') return this.startWork(id, st.kind, st.target);
+    if (st.kind === 'meeting') return this.callMeeting(id);
+    if (st.kind === 'blackout') return this.doBlackout(id);
+    if (st.kind === 'camera' && id === YOU) {
+      this.sound('camera');
+      this.cameraReadyAt = this.now() + RULES.cameraCooldown;
+      this.emit('camera', this.cameraEntries());
+      return true;
+    }
+    return false;
+  }
+
+  /** Start standing still at a part (pick it up) or the generator (fit it). Moving cancels. */
+  startWork(id, kind, target) {
+    if (this.work.has(id) || this.busy.has(id) || this.chaseOf(id)) return false;
+    this.work.set(id, { kind, target, ms: 0 });
+    return true;
+  }
+
+  updateWork(dt, youMoving) {
+    const g = this.refillRing;
+    const now = this.now();
+    for (const [id, w] of [...this.work]) {
+      const actor = this.actors.get(id);
+      const st = this.alive(id) ? this.stationFor(actor) : null;
+      const moving = id === YOU && !this.sim ? youMoving : actor.sprite.anims.currentAnim?.key.endsWith('walk');
+      if (!st || st.kind !== w.kind || st.target !== w.target || moving || this.busy.has(id) || this.chaseOf(id) || this.isFrozen(id)) {
+        this.work.delete(id);
+        continue;
+      }
+      w.ms += dt * 1000;
+      const need = w.kind === 'pick' ? RULES.partPickTime : RULES.partDeliverTime;
+      const t = Math.min(1, w.ms / need);
+      g.lineStyle(4, 0xffffff, 0.15).strokeCircle(actor.x, actor.y - 120, 12);
+      g.lineStyle(4, 0xffb04a, 1).beginPath().arc(actor.x, actor.y - 120, 12, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2).strokePath();
+      if (t < 1) continue;
+      this.work.delete(id);
+      if (w.kind === 'pick' && this.match.pickPart(id, w.target, now)) {
+        this.toastFor(id, 'You picked up a generator part. Fit it at the generator in the Reactor (basement).', '#ffb04a', 5000);
+        if (id === YOU) this.sound('partPick');
+        this.log(`${this.name(id)} picked up a generator part (${this.match.get(id).role === 'infected' ? 'a zombie hiding it' : 'a human'}).`, '#ffb04a');
+      }
+      if (w.kind === 'fit') this.onPartFitted(id, this.match.fitPart(id, now));
+    }
+  }
+
+  onPartFitted(id, res) {
+    if (!res) return;
+    this.showPoints(res.effects);
+    this.emit('part-fitted', res.left);
+    if (!res.restored) this.sound('partFit', this.actors.get(id), id === YOU ? 1 : 0.7);
+    this.log(`${this.name(id)} fitted a generator part.`, '#ffb04a');
+    if (!res.restored) {
+      this.emit('toast', `⚡ A part was fitted at the generator. ${res.left} to go.`, '#ffb04a', 4000);
+      return;
+    }
+    this.emit('toast', `⚡ POWER RESTORED. The evac truck reaches the Entrance in ${RULES.evacTime / 1000}s. More humans than zombies inside = humans win!`, '#ffd27a', 7000);
+    this.log('POWER RESTORED: the evac truck is on its way.', '#ffd27a');
+    this.emit('power');
+    this.sound('power');
+    this.scene.cameras.main.flash(400, 255, 210, 120);
+  }
+
+  /** The evac truck arrives: humans win if more humans than zombies stand in the Entrance. */
+  updateEvac(now) {
+    const at = this.match.evacAt;
+    if (at === null) return;
+    if (!this.evacWarned && at - now <= 20000) {
+      this.evacWarned = true;
+      this.emit('toast', 'The evac truck is 20 seconds out. Everyone to the Entrance!', '#ffd27a', 5000);
+      this.sound('evacWarn');
+    }
+    if (now < at) return;
+    this.match.evacAt = null;
+    const inside = [...this.actors.values()].filter((a) => this.alive(a.id) && a.state.mode === 'walk' && this.roomOf(a) === EVAC_ROOM);
+    const humans = inside.filter((a) => this.match.get(a.id).role === 'human').length;
+    const zombies = inside.length - humans;
+    if (humans >= 1 && humans > zombies) {
+      this.log(`The evac truck took ${humans} human${humans > 1 ? 's' : ''} out (${zombies} zombie${zombies === 1 ? '' : 's'} at the door).`, '#2fd2e0');
+      this.end('humans', 'evac');
+      return;
+    }
+    this.sound('evacFail');
+    this.emit('toast', `The evac truck left without anyone: ${humans} human${humans === 1 ? '' : 's'} vs ${zombies} zombie${zombies === 1 ? '' : 's'} at the Entrance.`, '#ff9a5a', 6000);
+    this.log(`The evac failed: ${humans} human${humans === 1 ? '' : 's'} vs ${zombies} zombie${zombies === 1 ? '' : 's'} at the Entrance.`, '#ff9a5a');
+  }
+
+  /** The zombies' one Blackout: every room goes dark for humans for 15s. */
+  doBlackout(id) {
+    const now = this.now();
+    if (this.over || this.meeting || !this.match.canBlackout(id, now).ok) return false;
+    this.match.blackout(id, now);
+    this.blackoutOn = true;
+    this.emit('toast', '⚠ BLACKOUT! The lights are out.', '#b4ff3a', 4000);
+    this.sound('blackout');
+    if (!this.sim) sfx.ambientDark(true);
+    this.toastFor(id, `You cut the power for ${RULES.blackoutTime / 1000}s. Zombies see fine in the dark.`, '#3ee67a', 4000);
+    this.log(`${this.name(id)} cut the power: BLACKOUT.`, '#b4ff3a');
+    this.emit('blackout', true);
+    return true;
+  }
+
+  updateBlackout(now) {
+    if (!this.blackoutOn || this.match.isBlackout(now)) return;
+    this.blackoutOn = false;
+    this.emit('blackout', false);
+    this.emit('toast', 'The emergency lights come back on.', '#c9ced8', 2500);
+    this.sound('lightsOn');
+    if (!this.sim) sfx.ambientDark(false);
+  }
+
+  /** Report a shot body: calls a meeting (doesn't use your Emergency Button). */
+  reportBody(id, bodyId) {
+    if (this.over || this.meeting || this.meetingQueued || this.busy.has(id) || this.chaseOf(id)) return false;
+    if (!this.match.canReport(id, bodyId, this.now()).ok) return false;
+    if (this.yourDuel) this.meetingQueued = { caller: id, body: bodyId };
+    else this.startMeeting(id, bodyId);
+    return true;
+  }
+
+  /** Security cameras: the last few room entries (not yours), newest first. */
+  cameraEntries() {
+    const now = this.elapsed();
+    return this.roomLog
+      .filter((e) => e.id !== YOU)
+      .slice(-RULES.cameraEntries)
+      .reverse()
+      .map((e) => ({ name: this.name(e.id), color: this.actors.get(e.id).color, room: ROOM_INFO.find((i) => i.id === e.room)?.name ?? e.room, ago: Math.max(0, Math.round((now - e.at) / 1000)) }));
+  }
+
+  updateRoomLog() {
+    for (const a of this.actors.values()) {
+      if (!this.alive(a.id) || a.state.mode !== 'walk') continue;
+      const room = this.roomOf(a);
+      if (!room || this.lastRoom.get(a.id) === room) continue;
+      const first = !this.lastRoom.has(a.id);
+      this.lastRoom.set(a.id, room);
+      if (first) continue;
+      this.roomLog.push({ id: a.id, room, at: this.elapsed() });
+      if (this.roomLog.length > 60) this.roomLog.shift();
+    }
+  }
+
+  // ------------------------------------------------------------ v3: generator parts (drawn)
+  makePartView() {
+    const s = this.scene;
+    const g = s.add.graphics();
+    g.fillStyle(0x0b0d12, 1).fillRoundedRect(-8, -22, 16, 22, 3).lineStyle(1.5, 0xe9e4d6, 0.9).strokeRoundedRect(-8, -22, 16, 22, 3);
+    g.fillStyle(0xffb04a, 1).fillRect(-4, -17, 8, 10).fillStyle(0xe9e4d6, 1).fillRect(-5, -25, 10, 3);
+    const glow = s.add.image(0, -11, 'glow').setScale(0.22).setTint(0xffb04a).setBlendMode(Phaser.BlendModes.ADD);
+    s.tweens.add({ targets: glow, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
+    return s.add.container(0, 0, [glow, g]).setDepth(11);
+  }
+
+  updateParts() {
+    for (const part of this.match.parts) {
+      const v = this.partViews.get(part.id);
+      if (!v) continue;
+      if (part.fitted) v.setVisible(false);
+      else if (part.carrier) {
+        const a = this.actors.get(part.carrier);
+        v.setVisible(true).setPosition(a.x + 16, a.y - 52).setScale(0.8); // in their hands: everyone can see who carries one
+      } else v.setVisible(true).setPosition(part.at.x, FLOORS[part.at.floor].y).setScale(1);
+    }
+  }
+
+  // ------------------------------------------------------------ v3: Last Stand, ghost, emotes
+  /** When one human is left they get a 1-bullet Gun and see the zombies for 5 seconds. */
+  checkLastStand() {
+    const id = this.match.checkLastStand();
+    if (!id) return;
+    this.emit('toast', '⚡ LAST STAND! One human is left.', '#ff4a5a', 5000);
+    this.sound('lastStand');
+    this.log(`LAST STAND: ${this.name(id)} is the last human and got a 1-bullet Gun.`, '#ff4a5a');
+    if (id === YOU) {
+      this.revealUntil = this.now() + RULES.lastStandReveal;
+      this.emit('hand-changed');
+      this.emit('last-stand');
+      this.emit('toast', `You got a Gun bullet. The zombies glow red for ${RULES.lastStandReveal / 1000} seconds.`, '#ff7a3a', 6000);
+      this.updateGlows();
+    }
+    const brain = this.brains.get(id);
+    if (brain) for (const z of this.match.living('infected')) brain.suspect(z.id, 6, `${this.name(z.id)} is a zombie. I saw it at my Last Stand.`);
+  }
+
+  /** You are out: a see-through ghost you can walk around with (all rooms lit, no talking). */
+  makeGhost() {
+    if (this.sim || this.ghost) return;
+    const a = this.you;
+    this.ghost = new Actor(this.scene, { id: 'ghost', name: '', color: '#9ab8ff', floor: a.floor(), x: a.x, isYou: false });
+    this.ghost.sprite.setAlpha(0.45).setDepth(21).setTint(0xc8d8ff);
+    this.emit('ghost', this.ghost);
+  }
+
+  /** Show an emote over a player's head. `sus` names the nearest player (or `target`). Bots react. */
+  emote(id, kind, target = null) {
+    const now = this.now();
+    const actor = this.actors.get(id);
+    if (!EMOTES[kind] || !actor || !this.alive(id) || this.meeting || now < (this.emoteAt.get(id) ?? 0)) return false;
+    this.emoteAt.set(id, now + 1500);
+    if (kind === 'sus' && !target) {
+      const near = this.visibleActors(actor, 350).sort((p, q) => Math.abs(p.x - actor.x) - Math.abs(q.x - actor.x))[0];
+      target = near?.id ?? null;
+    }
+    const text = kind === 'sus' && target ? `SUS: ${this.name(target)}` : EMOTES[kind];
+    this.bubbles.set(id, { text, until: now + 2200 });
+    this.sound('emote', actor, id === YOU ? 1 : 0.5);
+    for (const b of this.witnesses(actor)) b.seeEmote(id, kind, target);
+    return true;
+  }
+
   /** Exhausted players refill by standing still at a card refill for 5 seconds. */
   updateRefills(dt, youMoving) {
     const g = this.refillRing;
@@ -565,7 +978,7 @@ export default class Session {
       const id = actor.id;
       if (!this.alive(id)) continue;
       const box = SUPPLY_BOXES.find((b) => b.floor === actor.floor() && Math.abs(b.x - actor.x) < RULES.refillRange);
-      const moving = id === YOU ? youMoving : actor.sprite.anims.currentAnim?.key.endsWith('walk');
+      const moving = id === YOU && !this.sim ? youMoving : actor.sprite.anims.currentAnim?.key.endsWith('walk');
       if (!box || this.busy.has(id) || actor.state.mode !== 'walk' || !this.match.isExhausted(id)) {
         this.refill.delete(id);
         continue;
@@ -582,31 +995,10 @@ export default class Session {
         if (id === YOU) {
           this.emit('hand-changed');
           this.emit('toast', `Refilled: +${drawn.length} cards`, '#f2b84a');
+          this.sound('refill');
         }
       }
     }
-  }
-
-  // ------------------------------------------------------------ the Emergency Button
-  /** 'meeting' when an actor stands at the Emergency Button, else null. */
-  stationAt(actor) {
-    if (actor.state.mode !== 'walk') return null;
-    const b = EMERGENCY_BUTTON;
-    return b.floor === actor.floor() && Math.abs(b.x - actor.x) < RULES.meetingRange ? 'meeting' : null;
-  }
-
-  /** The action button for you right now: { kind, label, note, enabled, color } or null. */
-  yourAction() {
-    if (this.meeting || this.over || !this.alive(YOU) || this.busy.has(YOU) || this.chaseOf(YOU)) return null;
-    if (this.stationAt(this.you) !== 'meeting') return null;
-    const c = this.match.canCallMeeting(YOU, this.now());
-    const note = this.meetingQueued ? 'CALLED' : c.ok ? 'CALL MEETING' : c.reason === 'used' ? 'USED' : c.reason === 'in-cell' ? 'QUARANTINED' : `WAIT ${Math.ceil(c.wait / 1000)}s`;
-    return { kind: 'meeting', label: 'MEETING', note, enabled: c.ok && !this.meetingQueued, color: '#ff3b4a' };
-  }
-
-  /** You pressed the action button (Space). */
-  doAction() {
-    if (this.yourAction()?.enabled) this.callMeeting(YOU);
   }
 
   // ------------------------------------------------------------ meetings
@@ -615,15 +1007,27 @@ export default class Session {
     const actor = this.actors.get(id);
     if (this.over || this.meeting || this.meetingQueued || this.busy.has(id) || this.chaseOf(id)) return false;
     if (this.stationAt(actor) !== 'meeting' || !this.match.canCallMeeting(id, this.now()).ok) return false;
-    if (this.yourDuel) this.meetingQueued = id; // starts when your duel screen closes
+    if (this.yourDuel) this.meetingQueued = { caller: id, body: null }; // starts when your duel screen closes
     else this.startMeeting(id);
     return true;
   }
 
-  startMeeting(callerId) {
+  /** A meeting: from the Emergency Button, or from a reported body (`bodyId`). */
+  startMeeting(callerId, bodyId = null) {
     const now = this.now();
-    if (this.over || !this.alive(callerId) || !this.match.canCallMeeting(callerId, now).ok) return;
-    this.match.callMeeting(callerId, now);
+    if (this.over || !this.alive(callerId)) return;
+    if (bodyId) {
+      if (!this.match.canReport(callerId, bodyId, now).ok) return;
+      this.match.report(callerId, bodyId, now);
+    } else {
+      if (!this.match.canCallMeeting(callerId, now).ok) return;
+      this.match.callMeeting(callerId, now);
+    }
+    const opening = bodyId
+      ? `${this.name(callerId)} reported ${this.name(bodyId)}'s body in the ${this.roomName(this.actors.get(bodyId))}.`
+      : `${this.name(callerId)} pressed the Emergency Button.`;
+    this.log(bodyId ? opening : `${this.name(callerId)} called a meeting.`, '#ffd27a');
+    for (const id of [...this.work.keys()]) this.work.delete(id);
     // stop everything that was going on
     if (this.pending) this.emit('challenge-cancel');
     if (this.chaseOf(YOU)) this.emit('chase', null);
@@ -653,16 +1057,19 @@ export default class Session {
     });
     this.meeting = {
       caller: callerId,
+      body: bodyId,
       startedAt: now,
       phase: 'talk',
       phaseEnds: now + RULES.meetingTalk,
-      log: [{ from: null, text: `${this.name(callerId)} pressed the Emergency Button.` }],
+      log: [{ from: null, text: opening }],
       votes: new Map(),
       result: null,
       yourLastSay: 0,
       yourSays: 0,
     };
     for (const b of this.brains.values()) b.meetingStart(now, b.a.id === callerId);
+    this.sound(bodyId ? 'caught' : 'meeting');
+    if (bodyId) this.sound('meeting', null, 0.8);
     this.emit('meeting', true);
   }
 
@@ -717,6 +1124,7 @@ export default class Session {
     const m = this.meeting;
     if (!m || m.phase !== 'talk') return;
     m.log.push(msg);
+    if (msg.kind === 'accuse' && msg.target) this.match.noteAccused(msg.target);
     for (const b of this.brains.values()) if (b.a.id !== msg.from && this.alive(b.a.id)) b.hear(msg, m);
   }
 
@@ -760,16 +1168,25 @@ export default class Session {
     this.match.shiftTimers(m.startedAt, dur);
     this.endsAt += dur;
     this.match.meetingReadyAt = now + RULES.meetingCooldown;
+    this.nextLightning += dur;
+    this.cameraReadyAt += dur;
+    if (this.revealUntil > m.startedAt) this.revealUntil += dur;
     for (const b of this.brains.values()) b.meetingEnd(now, dur, m);
     this.meeting = null;
     this.emit('meeting', false);
-    if (m.result?.out) this.quarantine(m.result.out);
+    if (m.result?.out) {
+      this.showPoints(this.match.rewardVoters(m.result.out, m.votes));
+      this.quarantine(m.result.out);
+    }
     this.updateGlows();
     this.checkWin();
   }
 
   /** Voted out: locked in the Quarantine Cell for the rest of the match. Their role stays secret. */
   quarantine(id) {
+    this.log(`${this.name(id)} was voted out (${this.match.get(id).role === 'infected' ? 'a zombie' : 'a human'}).`, '#ff9a5a');
+    if (this.match.dropPart(id)) this.emit('toast', 'Their generator part went back where it was found.', '#ffb04a', 3500);
+    this.work.delete(id);
     this.match.quarantine(id);
     const a = this.actors.get(id);
     const cell = ROOMS.find((r) => r.id === 'quarantine');
@@ -783,7 +1200,10 @@ export default class Session {
     this.brains.delete(id);
     for (const b of this.brains.values()) b.suspicion.delete(id);
     this.emit('toast', `⛔ ${a.name} was quarantined. Nobody knows if they were infected.`, '#ff9a5a', 6000);
-    if (id === YOU) this.emit('you-quarantined');
+    if (id === YOU) {
+      this.emit('you-quarantined');
+      this.makeGhost();
+    }
   }
 
   // ------------------------------------------------------------ signs
@@ -837,6 +1257,7 @@ export default class Session {
 
   updateLabels(now) {
     const inDuel = new Set(this.botDuels.flatMap((d) => [d.a.id, d.b.id]));
+    this.drawBubbles(now);
     for (const actor of this.actors.values()) {
       if (actor.id === YOU) continue;
       const p = this.match.get(actor.id);
@@ -855,13 +1276,37 @@ export default class Session {
       else if (chase) text = chase.runner === actor ? 'RUNNING!' : 'CHASING';
       else if (this.match.inCell(actor.id, now)) text = `● QUARANTINE ${Math.ceil((p.cellUntil - now) / 1000)}`;
       else if (now < p.stunnedUntil) text = `STUNNED ${Math.ceil((p.stunnedUntil - now) / 1000)}`;
+      else if (this.work.has(actor.id)) text = this.work.get(actor.id).kind === 'fit' ? 'FITTING PART' : 'PICKING UP';
       else if (this.match.isExhausted(actor.id)) text = 'NO CARDS';
       actor.updateLabels(text);
     }
   }
 
+  /** Emote bubbles over heads (hidden in dark rooms like everything else). */
+  drawBubbles(now) {
+    this.bubbleViews ??= new Map();
+    for (const [id, b] of this.bubbles) {
+      const actor = this.actors.get(id);
+      let v = this.bubbleViews.get(id);
+      if (now >= b.until || !this.alive(id)) {
+        v?.destroy();
+        this.bubbleViews.delete(id);
+        this.bubbles.delete(id);
+        continue;
+      }
+      if (!v) {
+        v = this.scene.add.text(0, 0, '', { fontFamily: '"Rajdhani", sans-serif', fontSize: '13px', fontStyle: '700', color: '#0a0b10', backgroundColor: '#e9e4d6', padding: { x: 8, y: 3 }, resolution: 3 })
+          .setOrigin(0.5).setDepth(19);
+        this.bubbleViews.set(id, v);
+      }
+      if (v.text !== b.text) v.setText(b.text).setBackgroundColor(b.text.startsWith('SUS') ? '#ffb04a' : b.text === 'HELP!' ? '#ff7a7a' : '#e9e4d6');
+      v.setPosition(actor.x, actor.y - (id === YOU ? 112 : 136));
+    }
+  }
+
   checkWin() {
     if (this.over) return;
+    this.checkLastStand();
     const w = this.match.winner();
     if (w) return this.end(w, w === 'infected' ? 'all-infected' : 'all-zombies-gone');
     if (this.now() >= this.endsAt) this.end(this.match.timeUpWinner(), 'time');
@@ -872,8 +1317,12 @@ export default class Session {
     this.emit('challenge-cancel');
     this.emit('chase', null);
     if (this.meeting) this.emit('meeting', false);
+    this.match.finish(reason); // stealth + Last Stand bonuses
+    this.log(reason === 'evac' ? 'HUMANS ESCAPED.' : winner === 'infected' ? 'THE INFECTED WIN.' : 'THE HUMANS WIN.', winner === 'infected' ? '#3ee67a' : '#2fd2e0');
     const you = this.match.get(YOU);
     const youWon = (winner === 'humans') === (you.role === 'human');
+    if (reason === 'evac') this.sound('power', null, 0.6);
+    this.sound(youWon ? 'matchWin' : 'matchLose');
     const players = this.match.list().map((p) => ({
       id: p.id,
       name: p.name,
@@ -885,7 +1334,14 @@ export default class Session {
       startedInfected: p.startedInfected,
       stats: { ...p.stats },
       score: this.match.score(p.id),
+      parts: this.match.scoreParts(p.id),
+      shotBy: p.shotBy ? this.match.get(p.shotBy).name : null,
+      inCell: this.match.inCell(p.id, this.clock()),
+      accused: this.match.accused.has(p.id),
     }));
-    this.emit('match-over', { winner, reason, youWon, youRole: you.role, players, settings: this.settings, duration: this.now() - this.startedAt });
+    this.emit('match-over', {
+      winner, reason, youWon, youRole: you.role, players, settings: this.settings, duration: this.now() - this.startedAt,
+      timeline: this.timeline, modifier: this.modifier,
+    });
   }
 }

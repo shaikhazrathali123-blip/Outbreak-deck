@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT, UI } from '../ui/HUD.js';
+import sfx from '../audio/Sfx.js';
 
 const hex = (h) => Phaser.Display.Color.HexStringToColor(h).color;
 const PHASES = { talk: 'DISCUSS', vote: 'VOTE', result: 'RESULT' };
@@ -33,7 +34,9 @@ export default class MeetingScene extends Phaser.Scene {
     const caller = s.actors.get(s.meeting.caller);
     this.title = this.add.text(W / 2, this.small ? 20 : 32, 'EMERGENCY MEETING', { fontFamily: FONT, fontSize: this.small ? '22px' : '30px', fontStyle: '700', color: '#ff4a5a' })
       .setOrigin(0.5).setLetterSpacing(8).setShadow(0, 0, '#ff2a3a', 18, false, true);
-    this.sub = this.add.text(W / 2, this.small ? 42 : 60, `CALLED BY ${caller.name}`, { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: caller.color })
+    const body = s.meeting.body ? s.actors.get(s.meeting.body) : null;
+    this.title.setText(body ? 'BODY REPORTED' : 'EMERGENCY MEETING');
+    this.sub = this.add.text(W / 2, this.small ? 42 : 60, body ? `${caller.name} FOUND ${body.name}  ·  SHOT, ROLE UNKNOWN` : `CALLED BY ${caller.name}`, { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: caller.color })
       .setOrigin(0.5).setLetterSpacing(3);
     this.phase = this.add.text(W / 2, this.small ? 58 : 80, '', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#ffd27a' }).setOrigin(0.5).setLetterSpacing(3);
     this.barBg = this.add.rectangle(W / 2, this.small ? 70 : 94, 240, 3, 0xffffff, 0.12);
@@ -87,6 +90,7 @@ export default class MeetingScene extends Phaser.Scene {
     const m = s.meeting;
     if (!m || m.phase === 'result' || id === s.youId || !s.match.get(id).alive) return;
     this.selected = this.selected === id ? null : id;
+    sfx.play('tap', 0.6);
   }
 
   updateTiles(now) {
@@ -169,6 +173,7 @@ export default class MeetingScene extends Phaser.Scene {
       const z = this.add.zone(0, 0, 10, 10).setInteractive({ useHandCursor: true });
       z.on('pointerdown', (p, lx, ly, e) => {
         e?.stopPropagation();
+        if (c.enabled) sfx.play('tap');
         if (c.enabled) onClick();
       });
       c.add([g, t, z]);
@@ -263,7 +268,11 @@ export default class MeetingScene extends Phaser.Scene {
       this.tweens.killTweensOf(this.bar);
       this.tweens.add({ targets: this.bar, width: 0, duration: total });
       this.bar.setFillStyle(m.phase === 'vote' ? 0xff4a5a : 0xffd27a);
-      if (m.phase === 'result') this.showResult(m);
+      if (m.phase === 'vote') sfx.play('vote');
+      if (m.phase === 'result') {
+        this.showResult(m);
+        this.time.delayedCall(550, () => sfx.play(m.result.out ? 'voteOut' : 'noVote'));
+      }
     }
     const left = Math.max(0, Math.ceil((m.phaseEnds - now) / 1000));
     const tip = m.phase === 'talk' ? 'TAP A PLAYER, THEN ACCUSE OR VOUCH' : m.phase === 'vote' ? 'TAP A PLAYER, THEN VOTE  ·  TIES SAVE EVERYONE' : '';

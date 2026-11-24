@@ -97,13 +97,13 @@ At the start of each match, roles are secretly assigned.
 
 ## 📜 Game Rules
 
-> **The rulebook is [`GAME_GUIDE.txt`](GAME_GUIDE.txt) (v2.3).** If anything here disagrees with it, the guide wins. This section is a short summary.
+> **The rulebook is [`GAME_GUIDE.txt`](GAME_GUIDE.txt) (v3.0).** If anything here disagrees with it, the guide wins. This section is a short summary.
 
 ### 1. Match setup
 1. 6–15 players: today you play against 5–14 bots; online rooms with 6-letter codes come in Phase 4. Each player gets one of 15 neon colours.
 2. Names and skins come with online play (bots are P2, P3…; you are P1).
 3. Roles are assigned in secret.
-4. Each player receives **7 cards** from a shuffled deck. Zombies never get a Gun or a Cure; a human gets one of them at most.
+4. Each player receives **7 cards** from a shuffled deck. **Some humans start with a Gun** (v3: 50% / 20% / 40% / 45% of the humans at 6 / 7–8 / 9–12 / 13–15 players, rounded); the others start without one. 4 generator parts are hidden around the facility. Zombies never get a Gun or a Cure; a human gets one of them at most.
 5. Players spawn spread across the **Central Hall**, and a role card tells each player their secret role (infected players also see who their allies are).
 6. The match timer starts (default: **6 minutes**).
 
@@ -127,11 +127,13 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 |---|---|
 | Number vs Number | Higher number wins and **takes the loser's card**. Same number = draw. |
 | Zombie vs Number | Zombie wins: the human is **bitten and turns at once** (a Cure in their hand does **not** help) |
-| Gun vs anything else | Gun wins: that player is **shot** and out of the match, **human or zombie**. Uses 1 of the Gun's 2 bullets; the shot is announced; the shooter is **stunned 8 seconds** |
-| Cure vs Zombie | No bite; the zombie is **cured**; the Cure user spends **60 seconds in quarantine** |
+| Gun vs anything else | Gun wins: that player is **shot** and out of the match, **human or zombie**. Uses 1 of the Gun's 2 bullets; the shot is announced (no stun since v3) |
+| Cure vs Zombie | No bite; the zombie is **cured**; the Cure user spends **30 seconds in quarantine** |
 | Cure vs Number | Against a zombie: the zombie is cured but wins the duel (Cure user to quarantine). Against a human: the Cure is **wasted** and you lose |
 | Same special vs same special | Draw, cards go back (Gun vs Gun: each Gun still uses a bullet) |
 | Infected vs Infected | A **fake duel**: it looks like any duel from outside, but both keep their cards |
+
+**Bluff call (v3, once per match):** before picking, name the card your opponent will play (Zombie, Gun or Cure). Right: that card is cancelled, you win the duel and get +15. Wrong: −10 and the duel plays out as normal.
 
 **Clue:** when a human beats an infected player **with a number card**, they get a private hint like *"Your opponent's hands felt cold..."*, and the infected is **stunned for 12 seconds** (can't move or duel). A human who beats another human gets the same kind of hint 1 time in 8, so a clue is never proof.
 
@@ -143,12 +145,13 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 - Any **Gun or Cure** you hold is taken away and given **secretly** to a random other human who holds neither (or back to the refill supply if nobody can take it). No announcement, no hint.
 
 ### 5b. Hunger
-- An infected player must bite someone at least every **60 seconds**, counted from when they turned or last bit.
-- After that they are **STARVING**: every 40 seconds a hungry growl from their room is announced and they flare bright green for a moment (only people who can see them notice). A bite feeds them and resets the timer.
+- Hunger only runs while a zombie **holds a Zombie card**: once it grows they must use it within **20 seconds**.
+- After that they are **STARVING** (one state, v3): every 20 seconds a hungry growl from their room is announced and they flare bright green for a moment (only people who can see them notice). A bite feeds them: no hunger until the next card grows.
+- The Zombie card regrows after one fixed time per lobby size (v3): 75s / 45s / 65s / 95s at 6 / 7–8 / 9–12 / 13–15 players.
 
-### 5c. Cures and the 60-second quarantine
-- **A cured zombie** becomes human, loses all Zombie cards, stops being hungry and forgets the other zombies. They are **gagged for 60 seconds** (no quick-chat, no votes) and **recovering for 20 seconds** (pale tint, can't be bitten). They are not told who cured them.
-- **The Cure user** goes to the quarantine cell for **60 seconds**: can't move, duel, call a meeting, chat or vote, can't be bitten or voted out, and still counts as a human. Everyone sees "a player was quarantined", with no reason. A wasted Cure (on a human) means no quarantine.
+### 5c. Cures and the 30-second quarantine
+- **A cured zombie** becomes human, loses all Zombie cards, stops being hungry and forgets the other zombies. They are **gagged for 30 seconds** (no quick-chat, no votes) and **recovering for 20 seconds** (pale tint, can't be bitten). They are not told who cured them.
+- **The Cure user** goes to the quarantine cell for **30 seconds**: can't move, duel, call a meeting, chat or vote, can't be bitten or voted out, and still counts as a human. Everyone sees "a player was quarantined", with no reason. A wasted Cure (on a human) means no quarantine.
 - Zombies can never hold Guns or Cures (not from the deal, a refill, or a hand-off). A human holds **one** of them at most: a Gun **or** a Cure, never both.
 
 ### 6. Running out of cards
@@ -166,7 +169,15 @@ Both players pick one card in 5 seconds; both flip at once (see **Cards** below)
 - **30 seconds of discussion** with quick chat: *Accuse X*, *Vouch for X*, *I'm clean*, *Skip*. Anyone can lie; "I'm clean" is only a claim. Gagged players can't chat or vote.
 - **15 seconds of voting**: vote for a player or skip.
 - The player with the most votes is **Quarantined** (locked in the Quarantine Cell, out of the match, can still watch). Their role is **not revealed**.
-- A tie, or as many skips as top votes = nobody is quarantined. A player inside the 60-second cure quarantine can't be voted out.
+- A tie, or as many skips as top votes = nobody is quarantined. A player inside the 30-second cure quarantine can't be voted out.
+- **Body reports (v3):** standing next to a shot body you can REPORT it: that calls a meeting without using your Emergency Button (once per body, meeting cooldowns still apply).
+
+### 9. v3: Restore Power, Blackout, cameras, Last Stand
+- **Restore Power:** pick up the 4 generator parts (stand still 4s), fit them at the generator in the Reactor (4s, +10 each). Everyone sees who carries a part; zombies can hide one. All 4 = the **evac truck** reaches the Entrance 90s later: more humans than zombies inside = humans win.
+- **Blackout:** once per match a zombie at the breaker (Server Room) darkens every room for humans for 15s.
+- **Security cameras** (Lobby): the last 5 room entries.
+- **Last Stand:** the last human gets a 1-bullet Gun and sees the zombies glow red for 5s.
+- **Lightning** every 90s lights every room for a moment. **Emotes** (HELLO, FOLLOW ME, SUS!, HELP!). Out players walk on as **ghosts**. The results screen has a **match recap**, XP, ranks and badges. The menu has **modifiers** (Daily, Double Guns, Pitch Black, Fast Claws, Extra Cures) and unlockable colours.
 - Bots talk too: humans share their evidence (clues, Cure saves, signs, suspicious shots); infected lie, counter-accuse and frame humans.
 
 ---
@@ -178,7 +189,7 @@ Only **four kinds** of card, so anyone can learn them in a minute. The tension c
 | Card | Who has it | What it does |
 |---|---|---|
 | **1 – 9** | Everyone | Duel power. Higher number wins. |
-| 🧟 **Zombie** | Infected only | Beats **any** number card and **bites** the loser: they turn **at once**. A zombie holds **one** at most. Used up when played; the next one grows **40 seconds** later (one bite per 40s). A new zombie grows their first one 40s after turning. |
+| 🧟 **Zombie** | Infected only | Beats **any** number card and **bites** the loser: they turn **at once**. A zombie holds **one** at most. Used up when played; the next one grows **75 seconds** later, **+20s for every other living zombie** (so bites don't snowball). A new zombie grows their first one the same way. |
 | 🔫 **Gun** | Humans only, rare (3 per deck); a Gun **or** a Cure, never both | **2 bullets.** Kills whoever you play it on, **human or zombie**. Every shot is announced (shooter's name, never the target's role); the shooter is stunned 8 seconds. |
 | 💉 **Cure** | Humans only, rare (3 per deck); a Gun **or** a Cure, never both | **Play it** on a zombie to cure them (on a human it is wasted). It never protects its holder: you can't cure yourself. Curing a zombie costs you 60 seconds in quarantine. |
 
@@ -189,7 +200,7 @@ Only **four kinds** of card, so anyone can learn them in a minute. The tension c
 
 ## ⚔ Duel Tables
 
-There is one kind of duel: pick a card, flip, see the table above. The 10 duel tables (glowing blue, marked **DUEL**) are spread over all 4 floors so a challenge never needs a long walk. *(The earlier idea of five table types, such as Bluff Bet and Memory Match, was dropped to keep the game simple.)*
+There is one kind of duel: talk for 10 seconds (voice or message, only the two duelists; online play only, not built yet), then pick a card in 5 seconds, flip, see the table above. The 10 duel tables (glowing blue, marked **DUEL**) are spread over all 4 floors so a challenge never needs a long walk. *(The earlier idea of five table types, such as Bluff Bet and Memory Match, was dropped to keep the game simple.)*
 
 ---
 
@@ -225,6 +236,7 @@ In game, press **M** (or tap the small map) to open the full building map with a
 *Planned for Phase 5, not in the game yet.* Random events happen during each match to keep things tense. One event triggers every 60–90 seconds. They will be adjusted to the rulebook when they are built.
 
 ### 🌑 Lights Out
+- *Built in v3 as the zombies' **Blackout** (once per match, 15s, at the breaker). The random event below stays an idea.*
 - The whole facility goes dark for 30 seconds.
 - Humans' vision shrinks to a tiny circle.
 - Infected players keep normal vision.
@@ -256,16 +268,17 @@ In game, press **M** (or tap the small map) to open the full building map with a
 | Team | Wins if… |
 |---|---|
 | 🧍 **Humans** | Every zombie has been shot, voted out or cured |
+| 🧍 **Humans** | v3: the power is restored and, when the evac truck arrives, more humans than zombies stand in the Entrance |
 | 🧍 **Humans** | The timer hits 0 and humans are the bigger team, or it is a tie (a Cure user in the cell counts) |
 | 🧟 **Infected** | Every human has turned, been shot or been voted out |
 | 🧟 **Infected** | The timer hits 0 and there are **more zombies than humans** left |
 
-**Top player (secret points):** each player also has a secret score: card points in hand (number = its value, Gun 20, Cure 30, Zombie 0) + banked points (Gun shot on a zombie +10, on a human −10, bite +15, wasted Cure −10 more) + a time bonus (+10 per full minute in your current role, back to 0 when you are bitten or cured). Curing a zombie costs the Cure (−30), wasting it costs −40. You see only your own score; all are revealed on the results screen, where the highest score gets the ★. Shot or voted-out players keep the score they had.
+**Top player (secret points):** each player also has a secret score: card points in hand (number = its value, Gun 10 per bullet left, Cure 30, Zombie 0) + banked points (every Gun shot on a zombie +40 net, on a human −20 net, bite +15, wasted Cure −10 more; v3: number duel won +5, part fitted +10, vote that helped your team +20 / hurt it −10, bluff call right +15 / wrong −10, a zombie never accused +25 at the end, the Last Stand human making it +50) + a time bonus (+10 per full minute in your current role, back to 0 when you are bitten or cured). Curing a zombie costs the Cure (−30), wasting it costs −40. You see only your own score; all are revealed on the results screen, where the highest score gets the ★. Shot or voted-out players keep the score they had.
 
-**Rewards after each match:**
-- XP for playing, winning, infecting, surviving and correct votes.
-- Coins (used for cosmetics).
-- Match stats: duels won, players infected, times bluffed.
+**Rewards after each match (v3):**
+- XP = your score (at least 0) + 50 for a win, saved on this device. Ranks: Rookie, Orderly (300), Researcher (800), Specialist (1600), Director (3000); each unlocks 3 more neon colours.
+- Badges: Detective, Silent Killer, Sharpshooter, Engineer, Mind Reader, Survivor.
+- A match recap timeline. (Coins and cosmetics: later.)
 
 ---
 
@@ -279,7 +292,9 @@ In game, press **M** (or tap the small map) to open the full building map with a
 | Challenge | ⚔ button | E |
 | Accept / run from a challenge | ACCEPT / RUN buttons | Y / N |
 | Look at a card | Tap card in hand | 1–9 keys |
-| Emergency meeting | Round button next to ⚔ (at the Emergency Button) | Space |
+| Use a station (meeting, report, part, generator, breaker, cameras) | Round button next to ⚔ | Space |
+| Bluff call in a duel | CALL buttons | Z / G / C |
+| Emotes | Buttons on the right edge | 1–4 |
 | Meeting chat and vote | Tap a player, then a quick-chat or VOTE button | Mouse |
 
 ---
@@ -495,11 +510,14 @@ Each phase ends with something you can **play and test**. Don't start the next p
 
 ---
 
-### Rules v2 – v2.3 (GAME_GUIDE.txt)
+### Rules v2 – v2.5 (GAME_GUIDE.txt)
 **Goal:** one clear rulebook. `GAME_GUIDE.txt` is now the source of truth; the code follows it.
 v2.1 added: one Gun **or** Cure per human, no self-cure, and the bigger team wins at time-up.
 v2.2 added: a zombie holds **one** Zombie card and bites at most once per 40s (new zombies wait 40s for their first card); starving after 60s without a bite.
 v2.3 added: secret points and a ★ top player (see Win Conditions); the team result still decides the match.
+v2.4: the Zombie card regrows in **75s + 10s per other living zombie** instead of 40s. The balance simulator (`npm run sim`) showed zombies winning 92–100% with 40s; now humans win about 40% (6 players) to 63% (8 players), ~55–59% in 12–15.
+v2.5: duels start with a **10-second talk** (voice or message, just the two duelists); the 5-second card pick starts when it ends. Planned for online play; the bot game skips it for now.
+v2.6: hunger only runs while a zombie holds a Zombie card (it used to be 60s since the last bite, shorter than the 75s+ regrow, so every zombie starved every cycle). Hunger 20s, growl every 20s, regrow +20s per other zombie. Sim (200 matches): humans win 36% / 49% / 57% / 64% at 6 / 8 / 12 / 15 players (was 40 / 63 / 59 / 54).
 
 **Changed from Phase 3.6:**
 - [x] Bites turn you **at once** (no 45-second incubation); the Cure Lab machine is gone
@@ -513,9 +531,22 @@ v2.3 added: secret points and a ★ top player (see Win Conditions); the team re
 - [x] Zombies never get Guns or Cures from the deal or refills; false clues 1 in 8
 - [x] Humans win if every zombie is shot, voted out or cured; at 0:00 the bigger team wins (a tie goes to the humans)
 
-**Balance numbers** (all in `RULES`): hunger 60s, 1 Zombie card max, Zombie regrow 40s after each bite, cure quarantine / gag 60s, recovering 20s, shot stun 8s, 2 bullets. Target ~50% human wins.
+**Balance numbers** (all in `RULES`): hunger 20s (only while holding a Zombie card), growl every 20s, 1 Zombie card max, Zombie regrow 75s + 20s per other living zombie, cure quarantine / gag 60s, recovering 20s, shot stun 8s, 2 bullets. Target ~50% human wins.
 
 ---
+
+### Rules v3.0 (GAME_GUIDE.txt)
+**Goal:** fewer timers, balance per lobby size, and more to do than duel and vote.
+- [x] Cure quarantine and gag 30s (were 60s); no shot stun; one STARVING state; Zombie regrow is one number per lobby (`lobbyRules()` in `shared/constants.js`, no more +20s per zombie)
+- [x] Balance by lobby size: Gun share and Zombie regrow (`lobbyRules`)
+- [x] Restore Power: 4 generator parts, generator in the Reactor, evac truck at the Entrance (`Match.setupParts/pickPart/fitPart/dropPart`, `Session.updateWork/updateEvac`)
+- [x] Blackout (breaker, Server Room), security cameras (Lobby), body reports, Last Stand
+- [x] Bluff call in duels (`Match.resolveCalls`, DuelScene CALL buttons, `BotBrain.pickCall`)
+- [x] New points: number win, part, votes, calls, stealth, Last Stand (`POINTS`)
+- [x] Lightning reveal, emotes, ghosts, match recap, modifiers, ranks, badges, colours (`game/profile.js`)
+- [x] Bots fit parts, report bodies, go to the evac, cut the power, emote and bluff
+
+**Balance (sim, 200 matches, normal bots):** see CLAUDE.md for the latest table. Tune `lobbyRules`, `RULES.powerParts`, `partPickTime`, `evacTime`.
 
 ### Phase 4: Online Multiplayer
 **Time:** 3–4 weeks

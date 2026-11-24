@@ -1,0 +1,222 @@
+================================================================
+     OUTBREAK DECK  -  CARDS, POINTS AND TIME  (rules v3.0)
+================================================================
+
+A short guide to four questions:
+  1. Who gets a Gun?
+  2. Who gets a Zombie card?
+  3. Who gets a Cure?
+  4. How do points and time work?
+
+The full rulebook is GAME_GUIDE.txt. If this guide and the
+rulebook ever disagree, the rulebook wins.
+
+
+----------------------------------------------------------------
+1. WHO IS WHO AT THE START
+----------------------------------------------------------------
+
+  Everyone gets 7 cards. A few players are secretly ZOMBIES:
+
+    Players in the match    Zombies at the start
+    6 to 8                  1
+    9 to 12                 2
+    13 to 15                3
+
+  Everyone else is HUMAN.
+
+
+----------------------------------------------------------------
+2. WHO GETS A GUN
+----------------------------------------------------------------
+
+  AT THE START
+    Some humans start with a Gun (rounded). v3: it depends on the
+    lobby size (balance, tuned with the simulator):
+
+      Players   Share of humans   Example
+      6         50%               5 humans  -> 3 Guns
+      7-8       20%               7 humans  -> 1 Gun
+      9-12      40%               10 humans -> 4 Guns
+      13-15     45%               12 humans -> 5 Guns
+
+    Double Guns modifier: twice the share.
+    Who gets one is random. An armed human gets the Gun + 6 cards.
+    The other humans start WITHOUT a Gun.
+
+  LATER IN THE MATCH
+    - At a refill point (only when your hand is empty) you may
+      draw a Gun from the deck.
+    - If a human holding a Gun is BITTEN, the Gun goes in secret
+      to a random human who holds no Gun and no Cure.
+    - LAST STAND: the last human gets a 1-bullet Gun (or one more
+      bullet), even next to a Cure.
+
+  LIMITS
+    - Only humans. Zombies NEVER hold a Gun.
+    - A human holds ONE Gun or ONE Cure, never both (Last Stand is
+      the one exception).
+    - A Gun has 2 bullets. After the 2nd bullet it is used up.
+
+
+----------------------------------------------------------------
+3. WHO GETS A ZOMBIE CARD
+----------------------------------------------------------------
+
+  - Only zombies. Zombie cards are never in the deck.
+  - The first zombies start with 1 Zombie card.
+  - A zombie holds ONE Zombie card at most.
+  - After you play it, a new one grows back after ONE fixed time
+    for the lobby (v3, no more "+20s per zombie"):
+
+      Players   Regrow
+      6         75s
+      7-8       45s
+      9-12      65s
+      13-15     95s
+
+    Fast Claws modifier: 25% faster.
+  - A newly bitten zombie gets their first one the same time after
+    turning.
+  - A bluff call that names your Zombie card spends it: it regrows.
+  - A cured zombie loses their Zombie card.
+
+
+----------------------------------------------------------------
+4. WHO GETS A CURE
+----------------------------------------------------------------
+
+  - Only humans. Zombies NEVER hold a Cure.
+  - Cures are in the deck (rare; Extra Cures modifier: twice as
+    many). A human who did not start with a Gun may be dealt one at
+    the start, or draw one at a refill.
+  - A human holds ONE Gun or ONE Cure, never both.
+  - If a human holding a Cure is BITTEN, the Cure goes in secret to
+    a random human who holds no Gun and no Cure.
+  - A Cure only works when you PLAY it on a zombie. It never
+    protects you. You can't cure yourself.
+
+
+----------------------------------------------------------------
+5. POINTS (secret)
+----------------------------------------------------------------
+
+  Your TEAM still wins or loses the match. Points decide the
+  TOP PLAYER (the gold star on the results screen).
+
+  Only you see your own score (the gold chip under your role).
+  Everyone's score is revealed at the end. Tap the (i) next to a
+  player on the results screen to see where their points came from.
+
+  YOUR SCORE = CARD POINTS + EARNED POINTS + TIME BONUS
+
+  CARD POINTS (only while the card is in your hand)
+    Number card     its number (1 to 9)
+    Gun             10 for each bullet left (full Gun = 20)
+    Cure            30
+    Zombie card      0
+
+  EARNED POINTS
+    You shoot a ZOMBIE                 +40   (every shot)
+    You shoot a HUMAN                  -20
+    Your Zombie card bites             +15
+    You cure a zombie                  -30   (the Cure is used up)
+    You waste a Cure                   -40   (played on a human)
+    v3:
+    Win a number vs number duel         +5
+    Fit a generator part               +10
+    Your vote helped your team         +20   (you voted for the player
+    Your vote hurt your team           -10    who was voted out)
+    Right bluff call                   +15
+    Wrong bluff call                   -10
+    End: zombie still in, never
+         accused in a meeting          +25
+    End: you were the Last Stand
+         human and made it             +50
+
+  EXAMPLE: you hold 7, 4, 2 and a full Gun = 33 points.
+    Shoot a zombie          -> 73
+    Shoot another zombie    -> 113
+    Shoot a human instead   -> 13
+    Never shoot             -> stays 33
+
+  DUELS
+    Win a number duel -> you take the loser's card, its points, +5.
+    Lose a number duel -> the card you played is gone, and its points.
+    (Bitten by a Zombie card: you keep the number card you played.)
+
+  WHEN YOU ARE OUT
+    Shot or voted out -> your score freezes at what it was.
+
+  XP AND RANKS (v3, saved on this device)
+    XP per match = your score (at least 0) + 50 for a win.
+    Rookie 0 · Orderly 300 · Researcher 800 · Specialist 1600 ·
+    Director 3000. Each rank unlocks 3 more neon colours.
+
+
+----------------------------------------------------------------
+6. TIME BONUS
+----------------------------------------------------------------
+
+  +10 points for every FULL MINUTE you stay in your role
+  (human or zombie).
+
+  Your role changes -> the time bonus drops back to 0 and starts
+  again:
+    - a human who is BITTEN loses their human time bonus,
+    - a zombie who is CURED loses their zombie time bonus.
+
+  Meetings pause the time bonus, like the match clock.
+
+  Example: 3 minutes as a human = +30. Bitten -> 0.
+           1 minute later as a zombie = +10.
+
+
+----------------------------------------------------------------
+7. ALL THE TIMERS
+----------------------------------------------------------------
+
+  THE MATCH
+    Match length               4, 6 or 8 minutes (menu)
+    At 0:00                    the bigger team wins (tie = humans)
+    Lightning                  every 90s: all rooms lit for a moment
+
+  ZOMBIES
+    New Zombie card            one regrow time per lobby (section 3)
+    First card after turning   the same
+    Hunger                     20s holding a Zombie card unused
+                               -> STARVING (no card = no hunger)
+    Starving                   growl + green flare every 20s
+    Blackout                   once per match, 15s, not before 45s
+
+  GUNS AND CURES
+    Shooter stunned            none (v3)
+    Cure user in the cell      30s (can't move, duel, chat or vote)
+    Cured player gagged        30s (no chat, no vote)
+    Cured player recovering    20s (can't be bitten)
+
+  POWER AND EVAC
+    Pick up a part             stand still 4s
+    Fit a part                 stand still 4s at the generator
+    Evac truck                 90s after the 4th part
+    Security cameras           10s between looks
+
+  DUELS AND CHASES
+    Accept or run              5s
+    Talk at the table          10s (voice or message, before cards;
+                               online play only)
+    Pick a card                5s  (bluff call before you pick)
+    Duel cooldown              10s
+    Zombie beaten by a number  stunned 12s
+    Chase                      8s to touch the runner
+    Refill                     stand still 5s at a refill point
+                               (only with an empty hand: back to 4)
+
+  MEETINGS
+    First meeting              not before 30s (body reports too)
+    Between meetings           30s
+    Talk / vote                30s / 15s
+    Meetings per player        1 (body reports don't use it)
+
+
+================================================================

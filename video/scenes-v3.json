@@ -1,0 +1,16 @@
+[
+  { "id": "v3intro", "say": "Outbreak Deck, version three. A storm has locked the night shift inside the Helix facility. Here's everything that's new." },
+  { "id": "v3timers", "say": "First, fewer timers. Curing a zombie now costs you thirty seconds in quarantine, not sixty. There's no stun after a shot. And starving is one simple sign: every twenty seconds, a growl and a green flare." },
+  { "id": "v3balance", "say": "The game now balances itself by lobby size. How many humans start with a Gun, and how fast a Zombie card grows back, depend on how many players are in the match." },
+  { "id": "v3power", "say": "Humans have a new way to win. Four generator parts are hidden around the building. Pick one up, carry it down to the generator in the reactor, and fit it. Everyone can see who is carrying a part. And a zombie can grab one, and hide it." },
+  { "id": "v3evac", "say": "Fit all four, and the power comes back. Ninety seconds later, the evac truck reaches the entrance. If more humans than zombies are standing inside, the humans escape, and win." },
+  { "id": "v3blackout", "say": "Zombies get a sabotage too. Once per match, a zombie at the breaker in the server room can cut the lights. For fifteen seconds, humans can barely see. Zombies see just fine." },
+  { "id": "v3cameras", "say": "In the lobby, the security cameras show the last five room entries. Who went where, and how long ago." },
+  { "id": "v3bluff", "say": "In a duel, you can now make one bluff call per match. Name the card your opponent is about to play. Get it right, and their card is cancelled, and you win. Get it wrong, and you lose ten points." },
+  { "id": "v3report", "say": "Found a body? Report it. That calls a meeting, without using your emergency button." },
+  { "id": "v3last", "say": "When only one human is left, it's their last stand. They get a Gun with one bullet, and for five seconds, every zombie glows red." },
+  { "id": "v3extras", "say": "Plus: lightning that lights up every room for a moment. Emotes, to point out a suspect. And a ghost mode when you're out, so you can keep watching." },
+  { "id": "v3points", "say": "New points reward smart play. Win a number duel, plus five. Fit a part, plus ten. A vote that helps your team, plus twenty. A zombie who is never accused, plus twenty-five. Survive your last stand, plus fifty." },
+  { "id": "v3progress", "say": "After the match, read the full recap, earn experience, rank up, collect badges, and unlock new neon colours. And try the daily modifier, for a different night every day." },
+  { "id": "v3outro", "say": "Outbreak Deck, version three. Trust no one. And get to the evac." }
+]
