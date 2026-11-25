@@ -8,6 +8,14 @@ function canvas(scene, key, w, h, draw) {
 }
 
 export function createTextures(scene) {
+  // screen-edge darkening for fx=low (instead of a camera pass)
+  canvas(scene, 'vignette', 256, 256, (c) => {
+    const g = c.createRadialGradient(128, 128, 60, 128, 128, 182);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.6)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 256, 256);
+  });
   // round soft glow (neon, screens, reflections)
   canvas(scene, 'glow', 256, 256, (c) => {
     const g = c.createRadialGradient(128, 128, 0, 128, 128, 128);

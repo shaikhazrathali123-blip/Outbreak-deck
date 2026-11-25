@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import HUD, { FONT, UI } from '../ui/HUD.js';
+import HUD, { FONT, UI, MIN_TEXT } from '../ui/HUD.js';
+import { icon } from '../ui/icons.js';
+import { fxLevel } from '../game/fx.js';
+import { needsHint } from '../game/hints.js';
 import Joystick from '../ui/Joystick.js';
 import SideMap from '../side/SideMap.js';
 import HandUI from '../ui/HandUI.js';
@@ -39,39 +42,43 @@ export default class SideUIScene extends Phaser.Scene {
   create() {
     const gs = this.gameScene;
     const session = gs.session;
-    this.grain = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, 'grain')
-      .setOrigin(0)
-      .setAlpha(0.025)
-      .setBlendMode(Phaser.BlendModes.SCREEN);
+    // film grain: a full-screen blend every frame, so only on fx=high
+    this.grain = fxLevel(this.game) === 'high'
+      ? this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'grain').setOrigin(0).setAlpha(0.025).setBlendMode(Phaser.BlendModes.SCREEN)
+      : null;
+    this.vignette = fxLevel(this.game) === 'low' ? this.add.image(0, 0, 'vignette').setOrigin(0) : null;
     this.hud = new HUD(this);
     this.map = new SideMap(this, gs);
     this.joystick = new Joystick(this);
     this.hand = new HandUI(this);
     this.toasts = new Toasts(this);
+    this.hud.onBanner = (px) => this.toasts.setOffset(Math.max(0, px)); // toasts make room for the big room name
     this.challenge = new ChallengeButton(this, () => gs.challenge(gs.nearbyTarget()));
     this.action = new ActionButton(this, () => session.doAction());
 
     // role badge under the location chip
     this.roleBg = this.add.graphics();
-    this.role = this.add.text(22, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffffff' }).setOrigin(0, 0.5).setLetterSpacing(3);
+    this.role = this.add.text(26, 0, '', { fontFamily: FONT, fontSize: '17px', fontStyle: '700', color: '#ffffff' }).setOrigin(0, 0.5).setLetterSpacing(3);
     this.setRole(gs.match.get(gs.youId).role);
 
     // your secret score (nobody else can see it until the results)
     this.scoreBg = this.add.graphics();
-    this.scoreText = this.add.text(22, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffd27a' }).setOrigin(0, 0.5).setLetterSpacing(3);
+    this.scoreIcon = icon(this, 30, 0, 'lock', 16, 0xffd27a);
+    this.scoreText = this.add.text(44, 0, '', { fontFamily: FONT, fontSize: '16px', fontStyle: '700', color: '#ffd27a' }).setOrigin(0, 0.5).setLetterSpacing(2);
     this.lastScore = null;
 
     // match timer (top centre)
     this.timerBg = this.add.graphics();
-    this.timer = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '18px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(3);
-    // v3: power / evac / blackout line under the timer
-    this.status = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffb04a' }).setOrigin(0.5).setLetterSpacing(3);
+    this.timer = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '30px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(3);
+    // v3: power / evac / blackout under the timer: an icon + a number
+    this.statusIcon = icon(this, 0, 0, 'bolt', 18, 0xffb04a);
+    this.status = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '17px', fontStyle: '700', color: '#ffb04a' }).setOrigin(0, 0.5).setLetterSpacing(2);
     this.buildEmotes(session);
 
     // bottom prompt pill (ladders, refills)
     this.promptBg = this.add.graphics().setVisible(false);
-    this.prompt = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffd27a' }).setOrigin(0.5).setLetterSpacing(3).setVisible(false);
+    this.prompt = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', fontStyle: '700', color: '#ffd27a' }).setOrigin(0.5).setLetterSpacing(3).setVisible(false);
+    this.promptIcon = icon(this, 0, 0, 'climb', 22, 0xffd27a).setVisible(false);
 
     this.buildRequestPanel(session);
 
@@ -79,7 +86,7 @@ export default class SideUIScene extends Phaser.Scene {
     this.danger = this.add.image(0, 0, 'danger').setOrigin(0).setAlpha(0).setDepth(140);
     this.chaseText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '26px', fontStyle: '700', color: '#ff4a5a' })
       .setOrigin(0.5).setLetterSpacing(6).setDepth(141).setVisible(false);
-    this.chaseSub = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#ffd0d4' })
+    this.chaseSub = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '15px', fontStyle: '700', color: '#ffd0d4' })
       .setOrigin(0.5).setLetterSpacing(3).setDepth(141).setVisible(false);
     this.chase = null;
 
@@ -106,7 +113,11 @@ export default class SideUIScene extends Phaser.Scene {
     if (gs.currentRoom !== undefined) onRoom(gs.currentRoom);
     onHand();
 
-    this.events.on('map-open', (open) => (this.dead ? this.joystick.setEnabled(!open) : this.setPlaying(!open)));
+    this.events.on('map-open', (open) => {
+      if (open) this.hud.done('map');
+      if (this.dead) this.joystick.setEnabled(!open);
+      else this.setPlaying(!open);
+    });
     const onResize = (size) => this.layout(size.width, size.height);
     this.scale.on('resize', onResize);
     this.layout(this.scale.width, this.scale.height);
@@ -126,21 +137,20 @@ export default class SideUIScene extends Phaser.Scene {
     this.toasts.layout(width, height);
     this.challenge.layout(width, height, 0);
     this.action.layout(width, height);
-    this.grain.setSize(width, height);
-    this.hud.hint.setY(height - this.hand.height - 8);
-    this.hud.drawHintBg();
-    this.role.setY(70);
-    this.scoreText.setY(98);
-    this.hud.fps.setY(118);
+    this.grain?.setSize(width, height);
+    this.vignette?.setDisplaySize(width, height);
+    this.hud.placeHints(height - this.hand.height - 30, this.hand.centerX);
+    this.role.setY(67);
+    this.scoreText.setY(104);
+    this.scoreIcon.setY(104);
+    this.hud.fps.setPosition(14, 124);
     this.drawRole();
     this.drawScore();
-    this.timer.setPosition(width / 2, 22);
-    this.status.setPosition(width / 2, 46);
+    this.timer.setPosition(width / 2, 30);
+    this.statusY = 70;
+    this.placeStatus();
     this.layoutEmotes(width, height);
-    this.timerBg.clear().fillStyle(UI.panel, 0.8).fillRoundedRect(width / 2 - 46, 8, 92, 28, 14).lineStyle(1, UI.line, 0.18).strokeRoundedRect(width / 2 - 46, 8, 92, 28, 14);
-    this.hud.kicker.setY((height < 480 ? 44 : 54) + 12);
-    this.hud.banner.setY((height < 480 ? 68 : 84) + 12);
-    this.hud.bannerY = this.hud.banner.y;
+    this.timerBg.clear().fillStyle(UI.panel, 0.82).fillRoundedRect(width / 2 - 60, 8, 120, 44, 22).lineStyle(1.5, UI.line, 0.22).strokeRoundedRect(width / 2 - 60, 8, 120, 44, 22);
     this.request.setPosition(width / 2, height * 0.42);
     this.danger.setDisplaySize(width, height);
     this.chaseText.setPosition(width / 2, height * 0.24);
@@ -160,11 +170,11 @@ export default class SideUIScene extends Phaser.Scene {
     let text = 'HUMAN';
     let color = '#e9e4d6';
     if (!me.alive) [text, color] = [me.quarantined ? 'QUARANTINED' : 'OUT', '#8a909c'];
-    else if (me.role === 'infected' && session.match.isStarving(me.id, now)) [text, color] = ['ZOMBIE  ·  STARVING', '#b4ff3a'];
-    else if (me.role === 'infected' && me.hungerAt === null) [text, color] = [`ZOMBIE  ·  FED  ·  CLAW IN ${clockText(me.nextZombieAt - now)}`, '#3ee67a'];
-    else if (me.role === 'infected') [text, color] = [`ZOMBIE  ·  HUNGER ${clockText(me.hungerAt - now)}`, '#3ee67a'];
-    else if (session.match.inCell(me.id, now)) [text, color] = [`HUMAN  ·  IN QUARANTINE ${clockText(me.cellUntil - now)}`, '#ff9a5a'];
-    else if (session.match.isGagged(me.id, now)) [text, color] = [`HUMAN  ·  GAGGED ${clockText(me.gagUntil - now)}${session.match.isRecovering(me.id, now) ? '  ·  RECOVERING' : ''}`, '#9ab8d8'];
+    else if (me.role === 'infected' && session.match.isStarving(me.id, now)) [text, color] = ['ZOMBIE · STARVING', '#b4ff3a'];
+    else if (me.role === 'infected' && me.hungerAt === null) [text, color] = [`ZOMBIE · CLAW ${clockText(me.nextZombieAt - now)}`, '#3ee67a'];
+    else if (me.role === 'infected') [text, color] = [`ZOMBIE · HUNGER ${clockText(me.hungerAt - now)}`, '#3ee67a'];
+    else if (session.match.inCell(me.id, now)) [text, color] = [`HUMAN · CELL ${clockText(me.cellUntil - now)}`, '#ff9a5a'];
+    else if (session.match.isGagged(me.id, now)) [text, color] = [`HUMAN · GAGGED ${clockText(me.gagUntil - now)}`, '#9ab8d8'];
     if (text === this.role.text && color === this.roleColor) return;
     this.roleColor = color;
     this.role.setText(text).setColor(color);
@@ -173,8 +183,8 @@ export default class SideUIScene extends Phaser.Scene {
 
   drawRole() {
     const color = Phaser.Display.Color.HexStringToColor(this.roleColor ?? '#e9e4d6').color;
-    const w = this.role.width + 26;
-    this.roleBg.clear().fillStyle(UI.panel, 0.78).fillRoundedRect(12, 59, w, 22, 11).lineStyle(1, color, 0.6).strokeRoundedRect(12, 59, w, 22, 11);
+    const w = this.role.width + 30;
+    this.roleBg.clear().fillStyle(UI.panel, 0.82).fillRoundedRect(12, 51, w, 32, 16).lineStyle(1.5, color, 0.7).strokeRoundedRect(12, 51, w, 32, 16);
   }
 
   /** Your score chip; a floating +N / -N whenever it changes. */
@@ -190,12 +200,12 @@ export default class SideUIScene extends Phaser.Scene {
     this.lastBonus = bonus;
     const role = session.match.get(session.youId).role === 'infected' ? 'ZOMBIE' : 'HUMAN';
     const why = bonusDelta > 0 ? `  ·  ${bonus / 10} MIN AS ${role}` : bonusDelta < 0 ? '  ·  TIME BONUS LOST' : '';
-    this.scoreText.setText(`SCORE ${score}  ·  SECRET`);
+    this.scoreText.setText(`${score} PTS`);
     this.drawScore();
     if (!delta || !this.scoreText.visible) return;
     const pop = this.add
       .text(this.scoreText.x + this.scoreText.width + 22, this.scoreText.y, `${delta > 0 ? '+' : ''}${delta}${why}`, {
-        fontFamily: FONT, fontSize: why ? '13px' : '16px', fontStyle: '700', color: delta > 0 ? '#3ee6a0' : '#ff5a68',
+        fontFamily: FONT, fontSize: why ? `${MIN_TEXT}px` : '17px', fontStyle: '700', color: delta > 0 ? '#3ee6a0' : '#ff5a68',
       })
       .setOrigin(0, 0.5)
       .setDepth(60);
@@ -205,8 +215,8 @@ export default class SideUIScene extends Phaser.Scene {
 
   drawScore() {
     if (!this.scoreText.text) return;
-    const w = this.scoreText.width + 26;
-    this.scoreBg.clear().fillStyle(UI.panel, 0.78).fillRoundedRect(12, 87, w, 22, 11).lineStyle(1, 0xf2b84a, 0.6).strokeRoundedRect(12, 87, w, 22, 11);
+    const w = this.scoreText.width + 44;
+    this.scoreBg.clear().fillStyle(UI.panel, 0.82).fillRoundedRect(12, 90, w, 28, 14).lineStyle(1.5, 0xf2b84a, 0.6).strokeRoundedRect(12, 90, w, 28, 14);
   }
 
   /** A meeting pulls everyone to the Central Hall: hide the gameplay HUD while it runs. */
@@ -221,13 +231,14 @@ export default class SideUIScene extends Phaser.Scene {
   // ------------------------------------------------------------ v3: emotes, cameras, banners
   /** Four quick emotes on the right edge (keys 1–4). Bots nearby see them. */
   buildEmotes(session) {
-    this.emoteButtons = Object.entries(EMOTES).map(([kind, text], i) => {
+    // icons instead of words: HELLO (hand), FOLLOW ME (arrows), SUS! (eye), HELP! (warning)
+    this.emoteButtons = Object.keys(EMOTES).map((kind) => {
       const c = this.add.container(0, 0).setDepth(60);
       const g = this.add.graphics();
       const color = kind === 'sus' ? 0xffb04a : kind === 'help' ? 0xff7a7a : 0xe9e4d6;
-      g.fillStyle(UI.panel, 0.85).fillRoundedRect(-44, -12, 88, 24, 12).lineStyle(1, color, 0.7).strokeRoundedRect(-44, -12, 88, 24, 12);
-      const t = this.add.text(0, 0, `${i + 1} ${text}`, { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: Phaser.Display.Color.IntegerToColor(color).rgba }).setOrigin(0.5).setLetterSpacing(1);
-      const z = this.add.zone(0, 0, 88, 24).setInteractive({ useHandCursor: true });
+      g.fillStyle(UI.panel, 0.85).fillCircle(0, 0, 20).lineStyle(1.5, color, 0.7).strokeCircle(0, 0, 20);
+      const t = icon(this, 0, 0, kind, 22, color);
+      const z = this.add.zone(0, 0, 44, 44).setInteractive({ useHandCursor: true });
       z.on('pointerdown', (p, lx, ly, e) => {
         e?.stopPropagation();
         session.emote(session.youId, kind);
@@ -241,8 +252,8 @@ export default class SideUIScene extends Phaser.Scene {
   }
 
   layoutEmotes(width, height) {
-    const top = Math.max(150, height * 0.34);
-    this.emoteButtons.forEach((c, i) => c.setPosition(width - 58, top + i * 30));
+    const top = Math.max(130, height * 0.28);
+    this.emoteButtons.forEach((c, i) => c.setPosition(width - 76 + (i % 2) * 48, top + Math.floor(i / 2) * 48));
   }
 
   /** Security cameras: the last room entries, for a few seconds. */
@@ -254,12 +265,12 @@ export default class SideUIScene extends Phaser.Scene {
     const h = 46 + lines.length * 20;
     const g = this.add.graphics().fillStyle(UI.panel, 0.95).fillRoundedRect(-170, 0, 340, h, 12).lineStyle(1.5, 0x9ab8ff, 0.8).strokeRoundedRect(-170, 0, 340, h, 12);
     c.add(g);
-    c.add(this.add.text(0, 16, 'SECURITY CAMERAS  ·  LAST ROOM ENTRIES', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#9ab8ff' }).setOrigin(0.5).setLetterSpacing(2));
+    c.add(this.add.text(0, 16, 'CAMERAS  ·  LAST ENTRIES', { fontFamily: FONT, fontSize: `${MIN_TEXT}px`, fontStyle: '700', color: '#9ab8ff' }).setOrigin(0.5).setLetterSpacing(2));
     lines.forEach((e, i) => {
       const y = 38 + i * 20;
       c.add(this.add.text(-150, y, e.name, { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: e.color }).setOrigin(0, 0.5));
       c.add(this.add.text(-100, y, `→ ${e.room}`, { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: '#e9e4d6' }).setOrigin(0, 0.5));
-      if (e.ago !== null) c.add(this.add.text(150, y, `${e.ago}s ago`, { fontFamily: FONT, fontSize: '12px', fontStyle: '600', color: UI.dim }).setOrigin(1, 0.5));
+      if (e.ago !== null) c.add(this.add.text(150, y, `${e.ago}s`, { fontFamily: FONT, fontSize: `${MIN_TEXT}px`, fontStyle: '600', color: UI.dim }).setOrigin(1, 0.5));
     });
     c.setAlpha(0);
     this.tweens.add({ targets: c, alpha: 1, duration: 150 });
@@ -284,11 +295,25 @@ export default class SideUIScene extends Phaser.Scene {
     const now = session.clock();
     let text = '';
     let color = '#ffb04a';
-    if (m.isBlackout(now)) [text, color] = [`⚠ BLACKOUT ${Math.ceil((m.blackoutUntil - now) / 1000)}s`, '#b4ff3a'];
-    else if (m.evacAt !== null) [text, color] = [`EVAC IN ${clockText(m.evacAt - now)}  ·  ENTRANCE`, '#ffd27a'];
-    else if (m.powerAt !== null) [text, color] = ['POWER ON  ·  THE EVAC HAS GONE', '#8f96a3'];
-    else text = `⚡ POWER ${m.parts.filter((p) => p.fitted).length}/${m.parts.length}  ·  FIT PARTS AT THE REACTOR`;
-    if (this.status.text !== text) this.status.setText(text).setColor(color);
+    let ico = 'bolt';
+    if (m.isBlackout(now)) [text, color, ico] = [`${Math.ceil((m.blackoutUntil - now) / 1000)}s`, '#b4ff3a', 'dark'];
+    else if (m.evacAt !== null) [text, color, ico] = [clockText(m.evacAt - now), '#ffd27a', 'exit'];
+    else if (m.powerAt !== null) text = ''; // the evac has gone: nothing left to track
+    else text = `${m.parts.filter((p) => p.fitted).length}/${m.parts.length}`;
+    if (this.status.text === text && this.statusKind === ico) return;
+    this.statusKind = ico;
+    this.status.setText(text).setColor(color);
+    this.statusIcon.setTexture(`ico-${ico}`).setDisplaySize(18, 18).setTint(Phaser.Display.Color.HexStringToColor(color).color);
+    this.placeStatus();
+  }
+
+  /** Icon + number, centred under the timer. */
+  placeStatus() {
+    const w = this.status.width + 24;
+    const x = this.scale.width / 2 - w / 2;
+    const on = !!this.status.text && this.playing !== false;
+    this.statusIcon.setPosition(x + 9, this.statusY ?? 70).setVisible(on);
+    this.status.setPosition(x + 24, this.statusY ?? 70).setVisible(on);
   }
 
   /** Big card at the start telling you your secret role. */
@@ -298,22 +323,21 @@ export default class SideUIScene extends Phaser.Scene {
     const infected = you.role === 'infected';
     const color = infected ? '#3ee67a' : '#2fd2e0';
     const allies = session.match.list().filter((p) => p.role === 'infected' && p.id !== session.youId).map((p) => p.name);
+    const n = session.match.list().filter((p) => p.role === 'infected').length;
     const lines = infected
-      ? ['Bite humans with your ZOMBIE card: they turn at once. Outnumber them when the timer ends. Mind your HUNGER.', 'Beware of Guns and Cures.' + (allies.length ? `  Fellow infected: ${allies.join(', ')}` : '')]
-      : ['Shoot, cure or vote out every zombie, or restore the power (4 parts) and escape in the evac truck.', (() => { const n = session.match.list().filter((p) => p.role === 'infected').length; return `${n} infected ${n === 1 ? 'hides' : 'hide'} among you. Emergency Button in the Central Hall.`; })()];
-    if (infected) lines[1] += '  Cut the power once at the BREAKER (Server Room).';
-    if (session.modifier) lines.push(`TODAY: ${MODIFIERS[session.modifier].name.toUpperCase()}  ·  ${MODIFIERS[session.modifier].text}`);
+      ? ['Bite humans with your ZOMBIE card. Outnumber them by the end.', allies.length ? `Fellow infected: ${allies.join(', ')}` : 'Mind your hunger. Beware of Guns.']
+      : ['Find the zombies, or restore the power and escape.', `${n} infected ${n === 1 ? 'hides' : 'hide'} among you.`];
+    if (session.modifier) lines.push(`TODAY: ${MODIFIERS[session.modifier].name.toUpperCase()}`);
     const items = [];
     const bg = this.add.rectangle(0, 0, W, H, 0x020308, 0.78).setOrigin(0).setInteractive();
     items.push(bg);
-    items.push(this.add.text(W / 2, H * 0.36 - 34, 'NIGHT SHIFT  ·  STORM LOCKDOWN', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: '#7fb8b0' }).setOrigin(0.5).setLetterSpacing(6));
-    items.push(this.add.text(W / 2, H * 0.36, 'YOU ARE P1  ·  YOUR ROLE', { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(8));
+    items.push(this.add.text(W / 2, H * 0.36, 'YOU ARE', { fontFamily: FONT, fontSize: '16px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(8));
     items.push(
       this.add.text(W / 2, H * 0.36 + 44, infected ? 'INFECTED' : 'HUMAN', { fontFamily: FONT, fontSize: H < 480 ? '40px' : '56px', fontStyle: '700', color })
         .setOrigin(0.5).setLetterSpacing(12).setShadow(0, 0, color, 24, false, true),
     );
-    lines.forEach((l, i) => items.push(this.add.text(W / 2, H * 0.36 + 96 + i * 24, l, { fontFamily: FONT, fontSize: '15px', fontStyle: '600', color: '#c9ced8' }).setOrigin(0.5).setLetterSpacing(1)));
-    items.push(this.add.text(W / 2, H * 0.36 + 112 + lines.length * 24, 'TAP TO BEGIN', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: UI.dim }).setOrigin(0.5).setLetterSpacing(4));
+    lines.forEach((l, i) => items.push(this.add.text(W / 2, H * 0.36 + 96 + i * 26, l, { fontFamily: FONT, fontSize: '17px', fontStyle: '600', color: '#c9ced8', align: 'center', wordWrap: { width: W - 40 } }).setOrigin(0.5).setLetterSpacing(1)));
+    items.push(this.add.text(W / 2, H * 0.36 + 112 + lines.length * 26, 'TAP TO BEGIN', { fontFamily: FONT, fontSize: `${MIN_TEXT}px`, fontStyle: '700', color: UI.dim }).setOrigin(0.5).setLetterSpacing(4));
     for (const it of items) it.setDepth(200);
     const close = () => {
       if (!items[0].active) return;
@@ -332,7 +356,7 @@ export default class SideUIScene extends Phaser.Scene {
     const bar = this.add.rectangle(-130, -14, 260, 3, 0xff4a5a).setOrigin(0, 0.5);
     const button = (x, label, color, accept) => {
       const g = this.add.graphics().fillStyle(color, 1).fillRoundedRect(x - 62, 6, 124, 36, 18);
-      const t = this.add.text(x, 24, label, { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#0a0b10' }).setOrigin(0.5).setLetterSpacing(2);
+      const t = this.add.text(x, 24, label, { fontFamily: FONT, fontSize: '16px', fontStyle: '700', color: '#0a0b10' }).setOrigin(0.5).setLetterSpacing(2);
       const z = this.add.zone(x, 24, 124, 36).setInteractive({ useHandCursor: true });
       z.on('pointerdown', (p, lx, ly, e) => {
         e?.stopPropagation();
@@ -340,9 +364,9 @@ export default class SideUIScene extends Phaser.Scene {
       });
       return [g, t, z];
     };
-    const note = this.add.text(0, 58, 'Run, and they get 8 seconds to catch you', { fontFamily: FONT, fontSize: '11px', fontStyle: '600', color: UI.dim }).setOrigin(0.5).setLetterSpacing(2);
-    c.add([bg, title, bar, ...button(-70, 'ACCEPT  ·  Y', 0x9ffff4, true), ...button(70, 'RUN  ·  N', 0xff7a3a, false), note]);
-    bg.fillStyle(UI.panel, 0.95).fillRoundedRect(-160, -70, 320, 146, 14).lineStyle(1.5, 0xff4a5a, 0.8).strokeRoundedRect(-160, -70, 320, 146, 14);
+    const touch = this.sys.game.device.input.touch;
+    c.add([bg, title, bar, ...button(-70, touch ? 'ACCEPT' : 'ACCEPT  ·  Y', 0x9ffff4, true), ...button(70, touch ? 'RUN' : 'RUN  ·  N', 0xff7a3a, false)]);
+    bg.fillStyle(UI.panel, 0.95).fillRoundedRect(-160, -70, 320, 128, 14).lineStyle(1.5, 0xff4a5a, 0.8).strokeRoundedRect(-160, -70, 320, 128, 14);
     this.request = c;
     this.requestTitle = title;
     this.requestBar = bar;
@@ -369,7 +393,8 @@ export default class SideUIScene extends Phaser.Scene {
     const text = r.winner === 'infected' ? 'OUTBREAK' : r.reason === 'time' ? 'TIME UP' : 'CONTAINED';
     const color = r.winner === 'infected' ? '#3ee67a' : '#2fd2e0';
     this.add.rectangle(0, 0, W, H, 0x020308, 0.6).setOrigin(0).setDepth(300);
-    this.add.text(W / 2, H / 2, text, { fontFamily: FONT, fontSize: '64px', fontStyle: '700', color }).setOrigin(0.5).setLetterSpacing(14).setShadow(0, 0, color, 28, false, true).setDepth(301);
+    const t = this.add.text(W / 2, H / 2, text, { fontFamily: FONT, fontSize: '64px', fontStyle: '700', color }).setOrigin(0.5).setLetterSpacing(14).setShadow(0, 0, color, 28, false, true).setDepth(301);
+    if (t.width > W - 40) t.setScale((W - 40) / t.width);
   }
 
   setChase(c) {
@@ -395,7 +420,7 @@ export default class SideUIScene extends Phaser.Scene {
     const left = Math.max(0, Math.ceil((c.until - now) / 1000));
     if (c.role === 'runner') {
       this.chaseText.setText(`RUN!  ${left}`);
-      this.chaseSub.setText(`${c.name} IS CHASING YOU  ·  CLIMB A LADDER TO LOSE THEM`);
+      this.chaseSub.setText('CLIMB A LADDER TO LOSE THEM');
       const beat = (time % 800) / 800;
       if (beat < this.lastBeat) sfx.play('heartbeat');
       this.lastBeat = beat;
@@ -404,7 +429,7 @@ export default class SideUIScene extends Phaser.Scene {
       this.chaseText.setScale(1 + 0.06 * pulse);
     } else {
       this.chaseText.setText(now < c.startAt ? 'GET READY…' : `CATCH ${c.name}  ${left}`);
-      this.chaseSub.setText('TOUCH THEM TO FORCE THE DUEL');
+      this.chaseSub.setText('TOUCH THEM');
       this.danger.setAlpha(0);
     }
   }
@@ -416,22 +441,24 @@ export default class SideUIScene extends Phaser.Scene {
     this.updateRoleChip();
     const { width: W, height: H } = this.scale;
     const title = quarantined ? 'QUARANTINED' : 'YOU WERE SHOT';
-    const line = quarantined ? 'The others voted you out. Watch the rest from the Quarantine Cell.' : `${by} had a Gun. Your team plays on without you.`;
+    const line = quarantined ? 'The others voted you out.' : `${by} had a Gun.`;
     const color = quarantined ? '#ff9a5a' : '#ff4a5a';
     const items = [
       this.add.rectangle(0, 0, W, H, 0x120206, 0.55).setOrigin(0),
       this.add.text(W / 2, H * 0.38, title, { fontFamily: FONT, fontSize: '48px', fontStyle: '700', color }).setOrigin(0.5).setLetterSpacing(10).setShadow(0, 0, color, 24, false, true),
-      this.add.text(W / 2, H * 0.38 + 46, line, { fontFamily: FONT, fontSize: '15px', fontStyle: '600', color: '#e9c9cc' }).setOrigin(0.5).setLetterSpacing(1),
+      this.add.text(W / 2, H * 0.38 + 46, line, { fontFamily: FONT, fontSize: '17px', fontStyle: '600', color: '#e9c9cc', align: 'center', wordWrap: { width: W - 40 } }).setOrigin(0.5).setLetterSpacing(1),
     ];
+    if (items[1].width > W - 40) items[1].setScale((W - 40) / items[1].width);
     for (const it of items) it.setDepth(250);
     this.time.delayedCall(3500, () => this.tweens.add({ targets: items, alpha: 0, duration: 600 }));
     // v3: you walk on as a ghost: every room is lit for you, nobody can hear you
     this.joystick.setEnabled(true);
-    this.time.delayedCall(3800, () => this.toasts.show('You are a GHOST now: walk anywhere and watch. Nobody can see or hear you.', '#9ab8ff', 5000));
-    const g = this.add.graphics().setDepth(250).fillStyle(0x30343d, 0.95).fillRoundedRect(W / 2 - 130, 58, 260, 30, 15);
-    const t = this.add.text(W / 2, 73, 'GHOST  ·  YOU ARE OUT  ·  LEAVE (L)', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#e9e4d6' }).setOrigin(0.5).setLetterSpacing(2).setDepth(251);
+    this.time.delayedCall(3800, () => this.toasts.show('You are a GHOST: walk anywhere and watch.', '#9ab8ff', 4000));
+    const touch = this.sys.game.device.input.touch;
+    const g = this.add.graphics().setDepth(250).fillStyle(0x30343d, 0.95).fillRoundedRect(W / 2 - 110, 82, 220, 34, 17);
+    const t = this.add.text(W / 2, 99, touch ? 'GHOST  ·  TAP TO LEAVE' : 'GHOST  ·  LEAVE (L)', { fontFamily: FONT, fontSize: '15px', fontStyle: '700', color: '#e9e4d6' }).setOrigin(0.5).setLetterSpacing(2).setDepth(251);
     const leave = () => this.gameScene.scene.start('MenuScene');
-    this.add.zone(W / 2, 73, 260, 30).setInteractive({ useHandCursor: true }).setDepth(252).on('pointerup', leave);
+    this.add.zone(W / 2, 99, 220, 34).setInteractive({ useHandCursor: true }).setDepth(252).on('pointerup', leave);
     this.input.keyboard?.once('keydown-L', leave);
     this.deathChip = [g, t];
   }
@@ -442,7 +469,8 @@ export default class SideUIScene extends Phaser.Scene {
     this.hud.setVisible(on);
     this.hand.setVisible(on);
     this.joystick.setEnabled(on);
-    for (const o of [this.role, this.roleBg, this.scoreText, this.scoreBg, ...this.emoteButtons]) o.setVisible(on);
+    for (const o of [this.role, this.roleBg, this.scoreText, this.scoreBg, this.scoreIcon, ...this.emoteButtons]) o.setVisible(on);
+    this.placeStatus();
     if (!on) {
       this.challenge.set(null);
       this.action.set(null);
@@ -450,33 +478,43 @@ export default class SideUIScene extends Phaser.Scene {
     }
   }
 
-  showPrompt(text) {
-    if (!text) {
+  /** The pill above your cards: an optional icon and a few words. */
+  showPrompt(text, ico = null) {
+    if (!text && !ico) {
       this.prompt.setVisible(false);
       this.promptBg.setVisible(false);
+      this.promptIcon.setVisible(false);
       return;
     }
-    const y = this.scale.height - this.hand.height - 44;
-    if (this.prompt.text !== text || !this.prompt.visible || this.prompt.y !== y) {
-      this.prompt.setText(text).setPosition(this.scale.width / 2, y).setVisible(true);
-      const b = this.prompt.getBounds();
-      this.promptBg
-        .clear()
-        .fillStyle(UI.panel, 0.88)
-        .fillRoundedRect(b.x - 18, b.y - 8, b.width + 36, b.height + 16, 16)
-        .lineStyle(1, 0xffb04a, 0.6)
-        .strokeRoundedRect(b.x - 18, b.y - 8, b.width + 36, b.height + 16, 16)
-        .setVisible(true);
-    }
+    text ??= '';
+    const y = this.scale.height - this.hand.height - (this.hud.hintItems.length ? 76 : 36);
+    if (this.prompt.text === text && this.prompt.visible && this.promptY === y && this.promptKind === ico) return;
+    this.promptKind = ico;
+    this.promptY = y;
+    this.prompt.setText(text).setVisible(true);
+    const iw = ico ? 30 : 0;
+    const w = this.prompt.width + iw;
+    const x0 = (this.hand.centerX ?? this.scale.width / 2) - w / 2;
+    this.prompt.setPosition(x0 + iw + this.prompt.width / 2, y);
+    if (ico) this.promptIcon.setTexture(`ico-${ico}`).setDisplaySize(22, 22).setPosition(x0 + 11, y).setVisible(true);
+    else this.promptIcon.setVisible(false);
+    const h = 36;
+    this.promptBg.clear().fillStyle(UI.panel, 0.88).fillRoundedRect(x0 - 18, y - h / 2, w + 36, h, h / 2)
+      .lineStyle(1, 0xffb04a, 0.6).strokeRoundedRect(x0 - 18, y - h / 2, w + 36, h, h / 2).setVisible(true);
   }
 
   update(time) {
-    this.grain.setTilePosition(Math.random() * 128, Math.random() * 128);
+    this.grain?.setTilePosition(Math.random() * 128, Math.random() * 128);
     this.hud.update(time);
     this.map.update(time);
-    if (this.joystick.vector.lengthSq() > 0) this.hud.hideHint();
     const gs = this.gameScene;
     const session = gs.session;
+    // a hint goes for good once you have done the thing
+    if (this.hud.hintItems.length && !this.dead) {
+      const mv = gs.readMovement();
+      if (Math.abs(mv.x) > 0.3 && this.playing !== false) this.hud.done('walk');
+      if (session.you.state.mode === 'climb') this.hud.done('climb');
+    }
 
     const left = Math.ceil(session.timeLeft() / 1000);
     if (left !== this.lastLeft && left <= 10 && left > 0 && !session.meeting && !session.over) sfx.play('tick');
@@ -502,14 +540,16 @@ export default class SideUIScene extends Phaser.Scene {
     const ladder = gs.nearbyLadder();
     const me = gs.match.get(gs.youId);
     const now = gs.now();
-    if (gs.match.inCell(me.id, now)) this.showPrompt(`IN QUARANTINE  ${Math.ceil((me.cellUntil - now) / 1000)}  ·  GAGGED`);
+    if (gs.match.inCell(me.id, now)) this.showPrompt(`QUARANTINE  ${Math.ceil((me.cellUntil - now) / 1000)}`);
     else if (now < me.stunnedUntil) this.showPrompt(`STUNNED  ${Math.ceil((me.stunnedUntil - now) / 1000)}`);
-    else if (gs.refillHint) this.showPrompt(gs.refillHint);
-    else if (session.work.has(me.id)) this.showPrompt(session.work.get(me.id).kind === 'fit' ? 'FITTING THE PART…  STAND STILL' : 'PICKING UP THE PART…  STAND STILL');
-    else if (gs.match.partCarried(me.id) && !ladder) this.showPrompt('CARRYING A POWER PART  ·  FIT IT AT THE GENERATOR (REACTOR, BASEMENT)');
+    else if (gs.refillHint) this.showPrompt(gs.refillHint.startsWith('STAND') ? 'HOLD STILL TO REFILL' : 'REFILLING…');
+    else if (session.work.has(me.id)) this.showPrompt('HOLD STILL…', 'part');
+    else if (gs.match.partCarried(me.id) && !ladder) this.showPrompt('TO THE REACTOR', 'part');
     else if (ladder && !gs.busy) {
+      // a ladder: the key until you have climbed once, then just the arrow
       const up = ladder.lower === gs.state.floor;
-      this.showPrompt(up ? `▲  ${touch ? 'PUSH UP' : 'W'}  TO CLIMB` : `▼  ${touch ? 'PUSH DOWN' : 'S'}  TO CLIMB DOWN`);
+      const key = touch ? (up ? 'PUSH UP' : 'PUSH DOWN') : up ? 'W' : 'S';
+      this.showPrompt(needsHint('climb') ? `${up ? '▲' : '▼'}  ${key}` : up ? '▲' : '▼', 'climb');
     } else this.showPrompt(null);
   }
 }

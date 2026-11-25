@@ -557,6 +557,18 @@ v2.6: hunger only runs while a zombie holds a Zombie card (it used to be 60s sin
 - [x] Squash & stretch on landing from a ladder, grabbing one and turning; ghosts float with a see-through wobble
 - [x] Meeting tiles and result rows show a small helmet portrait instead of a dot
 
+### Look pass, stage 2: brighter, cleaner, less text
+**Goal:** easy to read on a phone, still "ink & neon".
+- [x] Your room is brighter (a soft lift behind the players, a faint back-light on every survivor); neighbours dim, far rooms dark
+- [x] About half the on-screen text gone: icons for walk / climb / map hints, the power / evac / blackout line, emotes and prompts;
+  no card-count line; shorter role chip, intro and death screens
+- [x] Control hints only in your first match, each one until you have done it (saved on the device)
+- [x] Bigger timer, role chip and (on phones) cards; HUD text at least 14 px
+- [x] Room name big for 1.5s when you enter, then it shrinks into the location chip
+- [x] Menu: your survivor big in the middle, idling, options around it (the Locker will open from here)
+- [x] Frame cost: one texture for all survivors and one for world labels (phones batch by texture), no camera pass on `?fx=low`,
+  sky skipped behind the building: a match frame went from about 165 to about 56 draw calls on phones
+
 ### Phase 4: Online Multiplayer
 **Time:** 3–4 weeks
 **Goal:** play with friends on different phones.

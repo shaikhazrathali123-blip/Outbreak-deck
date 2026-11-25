@@ -4,6 +4,8 @@ import { ROOM_HEIGHT, ORIGIN_X, WORLD, FLOORS, GROUND, ROOMS, LADDERS, GENERATOR
 import { drawFacility, drawSky, drawSkyline } from '../side/inkArt.js';
 import { FONT } from '../ui/HUD.js';
 import Session from '../game/Session.js';
+import { fxLevel } from '../game/fx.js';
+import { label } from '../side/labels.js';
 import sfx from '../audio/Sfx.js';
 
 // v3 theme: "Night Shift, Storm Lockdown". Each floor has a name and a mood.
@@ -59,6 +61,10 @@ export default class SideScene extends Phaser.Scene {
     // --- room darkness (above the players so dark rooms hide whoever is inside)
     this.shades = this.rooms.map((r) =>
       this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, 0x020308, 0.84).setOrigin(0).setDepth(20),
+    );
+    // your room gets a soft lift (behind the players, so they stand out as clean silhouettes)
+    this.lifts = this.rooms.map((r) =>
+      this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, 0x9fb4d8, 1).setOrigin(0).setDepth(8.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD),
     );
     this.currentRoom = undefined;
     this.blackout = false;
@@ -124,12 +130,13 @@ export default class SideScene extends Phaser.Scene {
     });
   }
 
-  /** Soft bloom on desktop (skipped on phones for speed; ?fx=high / ?fx=low to force) + vignette. */
+  /**
+   * fx=high (desktops): soft bloom + vignette as camera passes. fx=low (phones): no camera pass at all
+   * (a pass renders the whole view twice); the UI scene draws a cheap vignette image instead.
+   */
   setupPostFX(cam) {
-    if (this.game.renderer.type !== Phaser.WEBGL || !cam.postFX) return;
-    const fx = new URLSearchParams(window.location.search).get('fx');
-    const mobile = this.sys.game.device.input.touch && !this.sys.game.device.os.desktop;
-    if (fx === 'high' || (fx !== 'low' && !mobile)) cam.postFX.addBloom(0xffffff, 1, 1, 0.8, 0.32, 4);
+    if (this.game.renderer.type !== Phaser.WEBGL || !cam.postFX || fxLevel(this.game) === 'low') return;
+    cam.postFX.addBloom(0xffffff, 1, 1, 0.8, 0.32, 4);
     cam.postFX.addVignette(0.5, 0.5, 0.95, 0.38);
   }
 
@@ -140,9 +147,9 @@ export default class SideScene extends Phaser.Scene {
 
   /** Sky and distant city move slower than the building, which gives depth. */
   createBackdrop() {
-    this.add.image(0, 0, 'sky').setOrigin(0).setScrollFactor(0.15).setDepth(-3);
+    this.backdrop = [this.add.image(0, 0, 'sky').setOrigin(0).setScrollFactor(0.15).setDepth(-3)];
     // tuned so the city's base meets the horizon when you're on the ground floor
-    this.add.image(0, FLOORS[GROUND].y - 616, 'skyline').setOrigin(0).setScrollFactor(0.45, 0.75).setDepth(-2);
+    this.backdrop.push(this.add.image(0, FLOORS[GROUND].y - 616, 'skyline').setOrigin(0).setScrollFactor(0.45, 0.75).setDepth(-2));
   }
 
   // ---------------------------------------------------------------- lights
@@ -167,7 +174,8 @@ export default class SideScene extends Phaser.Scene {
       add(wash, 0.26, lamp.mode);
       // light pool on the floor
       const fy = this.floorBelow(lamp.y).y;
-      const pool = this.add.image(lamp.x, fy - 1, 'glow').setScale(1.15, 0.1).setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(15);
+      // depth 14 with the other 'glow' lights (ADD blending doesn't care about order): one batch on phones
+      const pool = this.add.image(lamp.x, fy - 1, 'glow').setScale(1.15, 0.1).setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(14);
       add(pool, 0.3, lamp.mode);
     }
 
@@ -225,21 +233,23 @@ export default class SideScene extends Phaser.Scene {
       .setShadow(0, 0, '#2fd2c0', 26, true, true)
       .setDepth(3);
     add(sign, 1, 'flicker');
-    this.add
+    const sub = this.add
       .text(this.art.roofSign.x, this.art.roofSign.y + 40, 'RESEARCH  FACILITY', { fontFamily: FONT, fontSize: '14px', fontStyle: '600', color: '#7fb8b0' })
       .setOrigin(0.5)
       .setDepth(3);
     const beacon = this.add.image(this.art.antenna.x, this.art.antenna.y, 'glow').setScale(0.32).setTint(0xff3b4a).setBlendMode(Phaser.BlendModes.ADD).setDepth(3);
     this.tweens.add({ targets: beacon, alpha: 0.1, duration: 800, yoyo: true, repeat: -1 });
+    this.roofItems = [sign, sub, beacon]; // only drawn while the roof can be in view (cullBackdrop)
   }
 
   /** Clean plates over each doorway naming the rooms on either side. */
   createSigns() {
     for (const s of this.art.signs) {
-      const style = { fontFamily: FONT, fontSize: '10px', fontStyle: '600', color: '#e9e4d6', resolution: 3 };
-      const left = this.add.text(s.x - 10, s.y, `‹  ${s.left}`, style).setOrigin(1, 0.5).setDepth(6).setAlpha(0.85);
-      const right = this.add.text(s.x + 10, s.y, `${s.right}  ›`, style).setOrigin(0, 0.5).setDepth(6).setAlpha(0.85);
-      const w = left.width + right.width + 34;
+      // labels come from one shared texture (see side/labels.js)
+      const style = { size: 10, weight: 600 };
+      const left = label(this, s.x - 10, s.y, `‹  ${s.left}`, style).setOrigin(1, 0.5).setDepth(6).setAlpha(0.85);
+      const right = label(this, s.x + 10, s.y, `${s.right}  ›`, style).setOrigin(0, 0.5).setDepth(6).setAlpha(0.85);
+      const w = left.displayWidth + right.displayWidth + 34;
       const g = this.add.graphics().setDepth(5.9);
       g.fillStyle(0x07080c, 0.92).fillRoundedRect(s.x - w / 2, s.y - 9, w, 18, 4);
       g.lineStyle(1, 0xe9e4d6, 0.22).strokeRoundedRect(s.x - w / 2, s.y - 9, w, 18, 4);
@@ -251,30 +261,29 @@ export default class SideScene extends Phaser.Scene {
 
   /** v3 stations: the generator (Reactor), the breaker (Server Room), the security desk (Lobby), the evac door (Entrance). */
   createStations() {
-    const label = (x, y, text, color) =>
-      this.add.text(x, y, text, { fontFamily: FONT, fontSize: '10px', fontStyle: '700', color, resolution: 3 }).setOrigin(0.5).setLetterSpacing(2).setDepth(6);
+    const tag = (x, y, text, color) => label(this, x, y, text, { size: 10, color, spacing: 2 }).setOrigin(0.5).setDepth(6);
     const fy = (spot) => FLOORS[spot.floor].y;
     // generator: a label over the reactor core and a ring of part slots that light up as parts are fitted
-    label(GENERATOR.x, fy(GENERATOR) - 214, 'GENERATOR  ·  FIT PARTS HERE', '#ffb04a');
-    this.partSlots = this.add.graphics().setDepth(6);
+    tag(GENERATOR.x, fy(GENERATOR) - 214, 'GENERATOR  ·  FIT PARTS HERE', '#ffb04a');
+    this.partSlots = this.add.graphics().setDepth(5.95);
     this.drawPartSlots();
     // breaker panel
-    const b = this.add.graphics().setDepth(6);
+    const b = this.add.graphics().setDepth(5.95);
     const bx = BREAKER.x;
     const by = fy(BREAKER) - 222; // high on the wall, clear of the door sign
     b.fillStyle(0x0b0d12, 1).fillRoundedRect(bx - 18, by, 36, 52, 4).lineStyle(1.5, 0xe9e4d6, 0.8).strokeRoundedRect(bx - 18, by, 36, 52, 4);
     b.fillStyle(0xb4ff3a, 0.9).fillRect(bx - 10, by + 10, 6, 14).fillRect(bx + 4, by + 10, 6, 14);
     b.lineStyle(2, 0xffb04a, 1).lineBetween(bx - 12, by + 38, bx + 12, by + 38);
-    label(bx, by - 10, 'BREAKER', '#b4ff3a');
+    tag(bx, by - 10, 'BREAKER', '#b4ff3a');
     // security desk monitor
-    const m = this.add.graphics().setDepth(6);
+    const m = this.add.graphics().setDepth(5.95);
     const mx = SECURITY_DESK.x;
     const my = fy(SECURITY_DESK) - 118;
     m.fillStyle(0x0b0d12, 1).fillRoundedRect(mx - 26, my, 52, 34, 3).lineStyle(1.5, 0xe9e4d6, 0.8).strokeRoundedRect(mx - 26, my, 52, 34, 3);
     m.fillStyle(0x9ab8ff, 0.5).fillRect(mx - 22, my + 4, 21, 12).fillRect(mx + 1, my + 4, 21, 12).fillRect(mx - 22, my + 18, 21, 12).fillRect(mx + 1, my + 18, 21, 12);
-    label(mx, my - 10, 'SECURITY CAMERAS', '#9ab8ff');
+    tag(mx, my - 10, 'SECURITY CAMERAS', '#9ab8ff');
     // evac sign over the exit
-    label(EVAC_SPOT.x, fy(EVAC_SPOT) - 214, 'EVAC POINT', '#2fd2e0');
+    tag(EVAC_SPOT.x, fy(EVAC_SPOT) - 214, 'EVAC POINT', '#2fd2e0');
   }
 
   /** Four slots over the generator: lit = a fitted part. */
@@ -412,6 +421,16 @@ export default class SideScene extends Phaser.Scene {
     this.session.update(delta / 1000, this.readMovement());
     this.animateLights(time);
     this.updateRoom();
+    this.cullBackdrop();
+  }
+
+  /** The building is opaque: while it fills the whole view, skip drawing the sky and city behind it. */
+  cullBackdrop() {
+    const v = this.cameras.main.worldView;
+    const b = this.art.building;
+    const hidden = v.x >= b.x && v.right <= b.x + b.width && v.y >= b.y + 40 && v.bottom <= b.y + b.height;
+    if (this.backdrop[0].visible === !hidden) return;
+    for (const o of [...this.backdrop, ...this.roofItems]) o.setVisible(!hidden);
   }
 
   animateLights(time) {
@@ -448,7 +467,8 @@ export default class SideScene extends Phaser.Scene {
     const ghost = !!this.session.ghost;
     const dark = this.blackout && !ghost && this.match.get(this.youId).role === 'human';
     const pitch = this.session.pitchBlack;
-    const [lit, near, far] = ghost ? [0.12, 0.12, 0.2] : dark ? [0.8, 0.93, 0.95] : pitch ? [0.3, 0.75, 0.92] : [0, 0.5, 0.84];
+    const [lit, near, far] = ghost ? [0.12, 0.12, 0.2] : dark ? [0.8, 0.93, 0.95] : pitch ? [0.3, 0.75, 0.92] : [0, 0.55, 0.84];
+    const lift = ghost || dark || pitch ? 0 : 0.085; // only a normally lit room gets brighter
     const neighbours = new Set();
     if (room) {
       for (const r of this.rooms) {
@@ -464,6 +484,8 @@ export default class SideScene extends Phaser.Scene {
       const target = r === room ? lit : neighbours.has(r) ? near : far;
       this.tweens.killTweensOf(this.shades[i]);
       this.tweens.add({ targets: this.shades[i], fillAlpha: target, duration: ms, ease: 'Sine.out' });
+      this.tweens.killTweensOf(this.lifts[i]);
+      this.tweens.add({ targets: this.lifts[i], alpha: r === room ? lift : 0, duration: ms, ease: 'Sine.out' });
     });
   }
 }

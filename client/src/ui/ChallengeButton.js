@@ -13,9 +13,9 @@ export default class ChallengeButton {
     this.root = scene.add.container(0, 0).setDepth(60).setVisible(false);
     this.ring = scene.add.graphics();
     this.icon = scene.add.graphics();
-    this.label = scene.add.text(0, 30, 'CHALLENGE', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(2);
+    this.label = scene.add.text(0, 56, 'CHALLENGE', { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(2);
     this.chip = scene.add.graphics();
-    this.target = scene.add.text(0, -64, '', { fontFamily: FONT, fontSize: '13px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(2);
+    this.target = scene.add.text(0, -64, '', { fontFamily: FONT, fontSize: '16px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(2);
     this.zone = scene.add.zone(0, 0, 96, 96).setInteractive({ useHandCursor: true });
     this.zone.on('pointerdown', (p, x, y, e) => {
       e?.stopPropagation();
@@ -32,14 +32,14 @@ export default class ChallengeButton {
   }
 
   layout(width, height, bottomInset = 0) {
-    this.root.setPosition(width - 70, height - 70 - Math.max(0, bottomInset - 40));
+    this.root.setPosition(width - 70, height - 82 - Math.max(0, bottomInset - 40));
   }
 
   drawIcon() {
     const g = this.icon.clear().lineStyle(4, 0xffffff, 1);
     g.lineBetween(-14, -14, 12, 12).lineBetween(14, -14, -12, 12);
     g.lineBetween(-16, 6, -6, 16).lineBetween(16, 6, 6, 16);
-    g.setPosition(0, -6);
+    g.setPosition(0, 0);
   }
 
   /** state: null to hide, or { name, color, enabled, note } */
@@ -63,7 +63,7 @@ export default class ChallengeButton {
     this.target.setText(state.name).setColor(state.color);
     const w = this.target.width + 30;
     const c = Phaser.Display.Color.HexStringToColor(state.color).color;
-    this.chip.clear().fillStyle(UI.panel, 0.88).fillRoundedRect(-w / 2, -76, w, 24, 12).fillStyle(c, 1).fillCircle(-w / 2 + 11, -64, 3.5);
+    this.chip.clear().fillStyle(UI.panel, 0.88).fillRoundedRect(-w / 2, -78, w, 28, 14).fillStyle(c, 1).fillCircle(-w / 2 + 11, -64, 3.5);
     this.target.setX(5);
   }
 }

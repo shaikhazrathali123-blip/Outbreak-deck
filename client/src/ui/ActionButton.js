@@ -16,8 +16,8 @@ export default class ActionButton {
     this.key = '';
     this.root = scene.add.container(0, 0).setDepth(60).setVisible(false);
     this.ring = scene.add.graphics();
-    this.title = scene.add.text(0, -4, '', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: '#ffffff', align: 'center' }).setOrigin(0.5).setLetterSpacing(1);
-    this.label = scene.add.text(0, 30, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(2);
+    this.title = scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '15px', fontStyle: '700', color: '#ffffff', align: 'center' }).setOrigin(0.5).setLetterSpacing(1);
+    this.label = scene.add.text(0, 52, '', { fontFamily: FONT, fontSize: '14px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5).setLetterSpacing(2);
     this.zone = scene.add.zone(0, 0, 90, 90).setInteractive({ useHandCursor: true });
     this.zone.on('pointerdown', (p, x, y, e) => {
       e?.stopPropagation();
@@ -35,7 +35,7 @@ export default class ActionButton {
   }
 
   layout(width, height) {
-    this.root.setPosition(width - 180, height - 70);
+    this.root.setPosition(width - 180, height - 82);
   }
 
   /** state: null to hide, or { label, note, enabled, color } */

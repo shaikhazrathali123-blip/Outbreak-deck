@@ -508,7 +508,7 @@ export default class Session {
     a.glow = null;
     a.glowKind = null;
     this.scene.tweens.add({ targets: a.sprite, alpha: 0.85, duration: 450 });
-    a.tag?.setText(`☠ ${a.name}`).setColor('#8a909c');
+    a.setTag(`☠ ${a.name}`, '#8a909c');
     this.brains.delete(id);
     for (const b of this.brains.values()) b.onShot(by, id);
     this.emit('toast', `☠ ${this.name(by)} shot ${this.name(id)}.`, '#ff7a3a', 5000);
@@ -1221,7 +1221,7 @@ export default class Session {
     a.state.ladder = null;
     a.sprite.setPosition(ORIGIN_X + cell.x1 - 50 - ((locked - 1) % 6) * 28, FLOORS[cell.floor].y).setAlpha(0.75);
     a.anim('idle');
-    a.tag?.setText(`⛔ ${a.name}`).setColor('#ff9a5a');
+    a.setTag(`⛔ ${a.name}`, '#ff9a5a');
     this.brains.delete(id);
     for (const b of this.brains.values()) b.suspicion.delete(id);
     this.emit('toast', `⛔ ${a.name} was quarantined. Nobody knows if they were infected.`, '#ff9a5a', 6000);

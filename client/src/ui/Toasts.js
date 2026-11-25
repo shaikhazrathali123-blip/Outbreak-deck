@@ -7,6 +7,7 @@ export default class Toasts {
     this.scene = scene;
     this.items = [];
     this.y = 118;
+    this.offset = 0; // pushed down while the big room banner is up
   }
 
   layout(width, height) {
@@ -26,7 +27,7 @@ export default class Toasts {
     const h = label.height + 16;
     const c = Phaser.Display.Color.HexStringToColor(color).color;
     bg.fillStyle(UI.panel, 0.9).fillRoundedRect(-w / 2, -h / 2, w, h, 10).fillStyle(c, 1).fillRoundedRect(-w / 2, -h / 2, 4, h, 2);
-    const item = s.add.container(s.scale.width / 2, this.y, [bg, label]).setDepth(80).setAlpha(0);
+    const item = s.add.container(s.scale.width / 2, this.y + this.offset, [bg, label]).setDepth(80).setAlpha(0);
     item.h = h;
     this.items.unshift(item);
     if (this.items.length > 3) this.remove(this.items[this.items.length - 1]);
@@ -42,8 +43,15 @@ export default class Toasts {
     this.restack();
   }
 
+  /** Move the stack down by `px` (0 = back to normal). */
+  setOffset(px) {
+    if (this.offset === px) return;
+    this.offset = px;
+    this.restack();
+  }
+
   restack() {
-    let y = this.y;
+    let y = this.y + this.offset;
     for (const item of this.items) {
       this.scene.tweens.add({ targets: item, x: this.scene.scale.width / 2, y: y + item.h / 2, duration: 180 });
       y += item.h + 6;

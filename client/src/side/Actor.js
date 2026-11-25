@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { PLAYER_SPEED } from '../../../shared/constants.js';
 import { WIDTH, ORIGIN_X, FLOORS, LADDERS } from './facility.js';
-import { createSurvivor, FACE_ANCHORS, SURVIVOR_SIZE, faceTint } from './SideCharacter.js';
+import { createSurvivorRow, survivorTexture, FACE_ANCHORS, SURVIVOR_SIZE, faceTint } from './SideCharacter.js';
+import { label, relabel } from './labels.js';
 import { FONT } from '../ui/HUD.js';
 
 export const CLIMB_SPEED = 140;
@@ -18,9 +19,9 @@ export default class Actor {
     this.name = name;
     this.color = color;
     this.isYou = isYou;
-    this.key = isYou ? 'survivor' : `survivor-${id}`;
-    createSurvivor(scene, this.key, color);
-    this.sprite = scene.add.sprite(x, FLOORS[floor].y, this.key, 'idle0').setOrigin(0.5, 1).setDepth(isYou ? 10 : 9);
+    // one shared sheet for the whole cast, a row per colour (see createSurvivorRow)
+    this.key = createSurvivorRow(scene, color);
+    this.sprite = scene.add.sprite(x, FLOORS[floor].y, ...survivorTexture(scene, this.key)).setOrigin(0.5, 1).setDepth(isYou ? 10 : 9);
     this.sprite.play({ key: `${this.key}-idle`, startFrame: Phaser.Math.Between(0, 1) });
     this.state = { mode: 'walk', floor, ladder: null };
     this.offsetX = 0; // twitch animation offset
@@ -31,17 +32,21 @@ export default class Actor {
     this.expression = 'neutral';
     this.faceColor = faceTint(color);
     this.visor = scene.add.image(x, 0, 'visor-faces', 'neutral').setTint(this.faceColor).setDepth((isYou ? 10 : 9) + 0.05);
+    // a soft back-light, the same for everyone: lifts the dark suit off the wall (dark rooms still hide it)
+    this.halo = scene.add.image(x, 0, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xcfe0ff).setAlpha(0.15).setScale(0.42, 0.5).setDepth(8.8);
     scene.events.on('postupdate', this.sync, this);
     this.sprite.once('destroy', () => {
       scene.events.off('postupdate', this.sync, this);
       this.visor.destroy();
+      this.halo.destroy();
     });
     if (!isYou) {
       const style = { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color, resolution: 3 };
-      this.tag = scene.add.text(x, 0, name, style).setOrigin(0.5).setDepth(9);
-      this.status = scene.add.text(x, 0, '', { ...style, fontSize: '11px', color: '#ffb04a' }).setOrigin(0.5).setDepth(9);
+      // the name tag comes from the shared label sheet (batches); status changes a lot, so it stays a Text
+      this.tag = label(scene, x, 0, name || ' ', { size: 12, color }).setOrigin(0.5).setDepth(9.6);
+      this.status = scene.add.text(x, 0, '', { ...style, fontSize: '11px', color: '#ffb04a' }).setOrigin(0.5).setDepth(9.7).setVisible(false);
       // Clean badge from the Blood Test, visible to everyone
-      this.badge = scene.add.text(x, 0, '', { ...style, fontSize: '10px', color: '#3ee6d0' }).setOrigin(0.5).setDepth(9);
+      this.badge = scene.add.text(x, 0, '', { ...style, fontSize: '10px', color: '#3ee6d0' }).setOrigin(0.5).setDepth(9.7).setVisible(false);
     }
   }
 
@@ -130,6 +135,8 @@ export default class Actor {
       s.setRotation(Math.sin(t / 610) * 0.06);
     }
     s.setScale(this.sq.x, this.sq.y);
+    const down = this.pose === 'down';
+    this.halo.setVisible(s.visible && !this.ghostly).setPosition(s.x, s.y - (down ? 22 : 40)).setScale(down ? 0.55 : 0.42, down ? 0.3 : 0.5).setAlpha(0.15 * s.alpha);
     const a = FACE_ANCHORS[s.frame.name];
     if (!a || !a.show || !s.visible) {
       f.setVisible(false);
@@ -217,14 +224,22 @@ export default class Actor {
   updateLabels(statusText = '', badgeText = '') {
     if (!this.tag) return;
     this.tag.setPosition(this.x, this.y - 94);
-    this.badge.setText(badgeText).setPosition(this.x, this.y - 108);
-    this.status.setText(statusText).setPosition(this.x, this.y - (badgeText ? 122 : 110));
+    // empty texts are hidden: each visible one is a draw call on phones
+    if (this.badge.text !== badgeText) this.badge.setText(badgeText);
+    this.badge.setVisible(!!badgeText && this.sprite.visible).setPosition(this.x, this.y - 108);
+    if (this.status.text !== statusText) this.status.setText(statusText);
+    this.status.setVisible(!!statusText && this.sprite.visible).setPosition(this.x, this.y - (badgeText ? 122 : 110));
+  }
+
+  /** Change the name tag (a skull when shot, a no-entry sign when voted out). */
+  setTag(text, color) {
+    if (this.tag) this.tag = relabel(this.tag, text, { size: 12, color });
   }
 
   setVisible(v) {
     this.sprite.setVisible(v);
     this.tag?.setVisible(v);
-    this.status?.setVisible(v);
-    this.badge?.setVisible(v);
+    this.status?.setVisible(v && !!this.status.text);
+    this.badge?.setVisible(v && !!this.badge.text);
   }
 }

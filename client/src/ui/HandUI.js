@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
-import { FONT, UI } from './HUD.js';
+import { FONT, UI, MIN_TEXT } from './HUD.js';
 import { cardTexture, cardScale, CARD_W, CARD_H } from './cardArt.js';
 import { cardName, isPlayable } from '../../../shared/cards.js';
 import { CARD_INFO } from '../../../shared/constants.js';
+
+const BUTTONS_W = 236; // the station + challenge buttons' corner
 
 /** Your cards, fanned along the bottom. Tap (or 1–9) to see what a card does. */
 export default class HandUI {
@@ -13,13 +15,13 @@ export default class HandUI {
     this.selected = -1;
 
     this.status = scene.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color: UI.dim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '16px', fontStyle: '700', color: '#ff6a78' })
       .setOrigin(0.5, 1)
       .setLetterSpacing(3);
     this.tipBg = scene.add.graphics();
-    this.tipTitle = scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '15px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5, 0).setLetterSpacing(2);
+    this.tipTitle = scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '17px', fontStyle: '700', color: '#ffffff' }).setOrigin(0.5, 0).setLetterSpacing(2);
     this.tipText = scene.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', fontStyle: '500', color: '#c9ced8', align: 'center', wordWrap: { width: 260 } })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: `${MIN_TEXT + 1}px`, fontStyle: '600', color: '#c9ced8', align: 'center', wordWrap: { width: 280 } })
       .setOrigin(0.5, 0);
     this.root.add([this.status, this.tipBg, this.tipTitle, this.tipText]);
     this.hideTip();
@@ -39,7 +41,9 @@ export default class HandUI {
   layout(width, height) {
     this.width = width;
     this.screenH = height;
-    this.cardH = Phaser.Math.Clamp(height * 0.19, 70, 118);
+    // phones get bigger cards: they are read at arm's length
+    const touch = this.scene.sys.game.device.input.touch;
+    this.cardH = touch ? Phaser.Math.Clamp(height * 0.26, 92, 132) : Phaser.Math.Clamp(height * 0.19, 76, 118);
     this.place();
   }
 
@@ -56,13 +60,8 @@ export default class HandUI {
     });
     this.root.add(this.cards);
     for (const o of [this.tipBg, this.tipTitle, this.tipText]) this.root.bringToTop(o);
-    const zombies = hand.filter((c) => c.kind === 'zombie').length;
-    const guns = hand.filter((c) => c.kind === 'gun').length;
-    const cures = hand.filter((c) => c.kind === 'cure').length;
-    const extras = [zombies && `${zombies} ZOMBIE`, guns && `${guns} GUN`, cures && `${cures} CURE`].filter(Boolean);
-    this.status
-      .setText(exhausted ? 'NO DUEL CARDS  ·  FIND A CARD REFILL' : [`${hand.filter(isPlayable).length} DUEL CARDS`, ...extras].join('  ·  '))
-      .setColor(exhausted ? '#ff6a78' : UI.dim);
+    // the cards speak for themselves: a line only when you have none
+    this.status.setText(exhausted || !hand.some(isPlayable) ? 'NO CARDS  ·  FIND A REFILL' : '');
     this.selected = -1;
     this.hideTip();
     this.place();
@@ -72,14 +71,19 @@ export default class HandUI {
     const n = this.cards.length;
     const scale = cardScale(this.cardH);
     const cw = CARD_W * (this.cardH / CARD_H);
-    const step = Math.min(cw * 0.78, (Math.min(this.width * 0.62, 640) - cw) / Math.max(1, n - 1));
+    // keep the fan clear of the round buttons in the bottom-right (station + challenge)
+    const right = this.width - BUTTONS_W;
+    const fan = Math.min(this.width * 0.62, 640, right - 16);
+    const cx = Math.max(16 + fan / 2, Math.min(this.width / 2, right - fan / 2));
+    this.centerX = cx;
+    const step = Math.min(cw * 0.78, (fan - cw) / Math.max(1, n - 1));
     const baseY = this.screenH - this.cardH * 0.3;
     this.cards.forEach((img, i) => {
       const t = i - (n - 1) / 2;
       const lift = i === this.selected ? this.cardH * 0.3 : 0;
-      img.setScale(scale).setPosition(this.width / 2 + t * step, baseY + Math.abs(t) * 3 - lift).setRotation(t * 0.045);
+      img.setScale(scale).setPosition(cx + t * step, baseY + Math.abs(t) * 3 - lift).setRotation(t * 0.045);
     });
-    this.status.setPosition(this.width / 2, baseY - this.cardH * 0.55 - 6);
+    this.status.setPosition(cx, baseY - this.cardH * 0.55 - 6);
   }
 
   select(i) {

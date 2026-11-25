@@ -396,17 +396,27 @@ function drawFrame(c, ox, name, n, opts, kind, accent, look) {
       : { x: CX + fx, y: FOOT + fy, rot: 0, show: kind !== 'back' };
 }
 
-/** Build the sprite sheet texture `key` and its animations. `look` picks a style per layer. */
-export function createSurvivor(scene, key = 'survivor', accent = '#ff8a2a', look = DEFAULT_LOOK) {
-  createVisorFaces(scene);
+/**
+ * Build the sprite sheet texture `key` and its animations. `look` picks a style per layer.
+ * `res` draws it sharper for big displays (the menu); `only` limits it to some animations.
+ */
+export function createSurvivor(scene, key = 'survivor', accent = '#ff8a2a', look = DEFAULT_LOOK, { res = 1, only = null } = {}) {
+  createVisorFaces(scene, res);
   if (scene.textures.exists(key)) return;
-  const frames = frameList();
-  const tex = scene.textures.createCanvas(key, FW * frames.length, FH);
+  const frames = frameList().filter(([name]) => !only || only.includes(name));
+  const tex = scene.textures.createCanvas(key, FW * res * frames.length, FH * res);
   const c = tex.getContext();
   const full = { ...DEFAULT_LOOK, ...look };
-  frames.forEach(([name, n, opts, kind], i) => drawFrame(c, i * FW, name, n, opts, kind, accent, full));
+  frames.forEach(([name, n, opts, kind], i) => {
+    c.save();
+    c.translate(i * FW * res, 0);
+    c.scale(res, res);
+    drawFrame(c, 0, name, n, opts, kind, accent, full);
+    c.restore();
+  });
   tex.refresh();
-  frames.forEach(([name, n], i) => tex.add(`${name}${n}`, 0, i * FW, 0, FW, FH));
+  frames.forEach(([name, n], i) => tex.add(`${name}${n}`, 0, i * FW * res, 0, FW * res, FH * res));
+  const has = (name) => frames.some(([f]) => f === name);
 
   const anim = (name, count, rate) =>
     scene.anims.create({
@@ -415,11 +425,75 @@ export function createSurvivor(scene, key = 'survivor', accent = '#ff8a2a', look
       frameRate: rate,
       repeat: -1,
     });
+  if (has('walk')) anim('walk', 8, 12);
+  if (has('idle')) anim('idle', 2, 2);
+  if (has('climb')) anim('climb', 4, 8);
+  if (has('duel')) anim('duel', 2, 3);
+}
+
+// ------------------------------------------------------------ the shared in-game sheet
+// Every survivor in a match lives in ONE texture ('survivors'), a row per colour + look, so the
+// whole cast batches into one draw call on phones (their pipeline uses one texture at a time).
+const ATLAS = 'survivors';
+const ROWS = 16; // 15 player colours + a spare
+let rows = null; // key -> row index, for the current atlas texture
+
+export const survivorKey = (accent, look = DEFAULT_LOOK) => `surv-${accent}-${LAYERS.map((l) => look[l] ?? 'default').join('.')}`;
+
+/** Make sure the survivor in `accent` (+ look) is in the shared sheet. Returns its key. */
+export function createSurvivorRow(scene, accent, look = DEFAULT_LOOK) {
+  createVisorFaces(scene);
+  const key = survivorKey(accent, look);
+  const frames = frameList();
+  if (!scene.textures.exists(ATLAS)) {
+    scene.textures.createCanvas(ATLAS, FW * frames.length, FH * ROWS);
+    rows = new Map();
+  }
+  const tex = scene.textures.get(ATLAS);
+  if (rows.has(key) || scene.textures.exists(key)) return key;
+  if (rows.size >= ROWS) {
+    // full (should not happen with 15 colours): fall back to its own texture
+    createSurvivor(scene, key, accent, look);
+    return key;
+  }
+  const row = rows.size;
+  rows.set(key, row);
+  const c = tex.getContext();
+  const full = { ...DEFAULT_LOOK, ...look };
+  frames.forEach(([name, n, opts, kind], i) => {
+    c.save();
+    c.translate(i * FW, row * FH);
+    drawFrame(c, 0, name, n, opts, kind, accent, full);
+    c.restore();
+    const frame = `${key}:${name}${n}`;
+    tex.add(frame, 0, i * FW, row * FH, FW, FH);
+    FACE_ANCHORS[frame] = FACE_ANCHORS[`${name}${n}`];
+  });
+  // upload once before the next frame, however many rows were added
+  if (!tex.pendingRefresh) {
+    tex.pendingRefresh = true;
+    scene.events.once('prerender', () => {
+      tex.pendingRefresh = false;
+      tex.refresh();
+    });
+  }
+  const anim = (name, count, rate) =>
+    scene.anims.exists(`${key}-${name}`) ||
+    scene.anims.create({
+      key: `${key}-${name}`,
+      frames: Array.from({ length: count }, (_, i) => ({ key: ATLAS, frame: `${key}:${name}${i}` })),
+      frameRate: rate,
+      repeat: -1,
+    });
   anim('walk', 8, 12);
   anim('idle', 2, 2);
   anim('climb', 4, 8);
   anim('duel', 2, 3);
+  return key;
 }
+
+/** Texture + first frame for a survivor made by createSurvivorRow. */
+export const survivorTexture = (scene, key) => (scene.textures.exists(key) ? [key, 'idle0'] : [ATLAS, `${key}:idle0`]);
 
 // ------------------------------------------------------------ visor faces (shared, white: tinted per player)
 const FACE_DRAW = {
@@ -499,14 +573,18 @@ const FACE_DRAW = {
   },
 };
 
+export const facesKey = (res = 1) => (res === 1 ? 'visor-faces' : `visor-faces@${res}`);
+
 /** One shared sheet of glowing visor expressions (white, so each player tints it). */
-export function createVisorFaces(scene) {
-  if (scene.textures.exists('visor-faces')) return;
-  const tex = scene.textures.createCanvas('visor-faces', FACE_W * EXPRESSIONS.length, FACE_H);
+export function createVisorFaces(scene, res = 1) {
+  const key = facesKey(res);
+  if (scene.textures.exists(key)) return;
+  const tex = scene.textures.createCanvas(key, FACE_W * res * EXPRESSIONS.length, FACE_H * res);
   const c = tex.getContext();
   EXPRESSIONS.forEach((name, i) => {
     c.save();
-    c.translate(i * FACE_W, 0);
+    c.translate(i * FACE_W * res, 0);
+    c.scale(res, res);
     c.fillStyle = '#ffffff';
     c.strokeStyle = '#ffffff';
     c.shadowColor = '#ffffff';
@@ -515,7 +593,7 @@ export function createVisorFaces(scene) {
     c.restore();
   });
   tex.refresh();
-  EXPRESSIONS.forEach((name, i) => tex.add(name, 0, i * FACE_W, 0, FACE_W, FACE_H));
+  EXPRESSIONS.forEach((name, i) => tex.add(name, 0, i * FACE_W * res, 0, FACE_W * res, FACE_H * res));
 }
 
 /** The visor-face colour for a player: their accent, washed towards white so it reads as light. */

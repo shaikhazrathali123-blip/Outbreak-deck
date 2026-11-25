@@ -42,7 +42,9 @@ await build({
       setup(b) {
         b.onResolve({ filter: /^phaser$/ }, () => ({ path: path.join(root, 'tools', 'sim', 'phaser-stub.js') }));
         b.onResolve({ filter: /SideCharacter\.js$/ }, () => ({ path: 'side-character', namespace: 'stub' }));
-        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export function createSurvivor() {}; export const FACE_ANCHORS = {}; export const SURVIVOR_SIZE = { width: 80, height: 92 }; export const faceTint = () => 0xffffff;', loader: 'js' }));
+        b.onResolve({ filter: /side[\/]labels\.js$|\/labels\.js$/ }, () => ({ path: 'labels', namespace: 'stub-labels' }));
+        b.onLoad({ filter: /.*/, namespace: 'stub-labels' }, () => ({ contents: 'export const label = (scene, x, y) => scene.add.image(x, y); export const relabel = (img) => img; export const flushLabels = () => {};', loader: 'js' }));
+        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export function createSurvivor() {}; export const createSurvivorRow = () => "surv"; export const survivorTexture = () => ["survivors", "idle0"]; export const FACE_ANCHORS = {}; export const SURVIVOR_SIZE = { width: 80, height: 92 }; export const faceTint = () => 0xffffff;', loader: 'js' }));
       },
     },
   ],
