@@ -20,6 +20,8 @@ const POINT_REASONS = {
   stealth: 'never accused', 'last-stand': 'Last Stand', 'call-right': 'right call', 'call-wrong': 'wrong call',
 };
 export const EMOTES = { hello: 'HELLO', follow: 'FOLLOW ME', sus: 'SUS!', help: 'HELP!' };
+/** Visor face shown while an emote bubble is up. */
+const FACE_FOR_EMOTE = { hello: 'happy', follow: 'happy', sus: 'suspicious', help: 'scared' };
 
 /**
  * One match (rules: GAME_GUIDE.txt): players (you + bots), roles, the shared Match rules,
@@ -500,12 +502,12 @@ export default class Session {
     const dropped = this.match.dropPart(id, { floor: a.floor(), x: a.x });
     if (dropped) this.emit('toast', 'A generator part fell to the floor.', '#ffb04a', 3500);
     this.work.delete(id);
-    a.sprite.anims.stop();
-    a.sprite.setTint(0x6a707c).setFlipX(false);
+    a.down(); // the 'down' pose: on their back, visor dark
+    a.sprite.setTint(0x6a707c);
     if (a.glow) a.sprite.preFX?.remove(a.glow);
     a.glow = null;
     a.glowKind = null;
-    this.scene.tweens.add({ targets: a.sprite, angle: -90, alpha: 0.85, duration: 450, ease: 'Bounce.out' });
+    this.scene.tweens.add({ targets: a.sprite, alpha: 0.85, duration: 450 });
     a.tag?.setText(`☠ ${a.name}`).setColor('#8a909c');
     this.brains.delete(id);
     for (const b of this.brains.values()) b.onShot(by, id);
@@ -681,7 +683,30 @@ export default class Session {
     this.updateRoomLog();
     this.updateSigns(now);
     this.updateLabels(now);
+    this.updateFaces(now);
     this.checkWin();
+  }
+
+  /**
+   * Visor expressions and the duel pose. Only states every player can be in (chases, duels,
+   * challenges, emotes), never hunger or role: a face must not give anyone away.
+   */
+  updateFaces(now) {
+    if (this.sim) return;
+    const atTable = new Set([...this.botDuels.flatMap((d) => [d.a.id, d.b.id]), ...(this.yourDuel?.ids ?? [])]);
+    const walking = new Set(this.approaches.flatMap((d) => [d.a.id, d.b.id]));
+    for (const actor of this.actors.values()) {
+      if (!this.alive(actor.id)) continue;
+      actor.setPose(atTable.has(actor.id) ? 'duel' : null);
+      const bubble = this.bubbles.get(actor.id);
+      const chase = this.chaseOf(actor.id);
+      let face = 'neutral';
+      if (bubble && now < bubble.until) face = FACE_FOR_EMOTE[bubble.kind] ?? 'happy';
+      else if (chase) face = chase.runner === actor ? 'scared' : 'angry';
+      else if (atTable.has(actor.id) || walking.has(actor.id)) face = 'scared';
+      else if (this.busy.has(actor.id) || (this.pending && (this.pending.from === actor.id || actor.id === YOU))) face = 'suspicious';
+      actor.setExpression(face);
+    }
   }
 
   /** Safety net: free anyone marked busy who is no longer in any challenge or duel. */
@@ -948,7 +973,7 @@ export default class Session {
   makeGhost() {
     if (this.sim || this.ghost) return;
     const a = this.you;
-    this.ghost = new Actor(this.scene, { id: 'ghost', name: '', color: '#9ab8ff', floor: a.floor(), x: a.x, isYou: false });
+    this.ghost = new Actor(this.scene, { id: 'ghost', name: '', color: '#9ab8ff', floor: a.floor(), x: a.x, isYou: false, ghost: true });
     this.ghost.sprite.setAlpha(0.45).setDepth(21).setTint(0xc8d8ff);
     this.emit('ghost', this.ghost);
   }
@@ -964,7 +989,7 @@ export default class Session {
       target = near?.id ?? null;
     }
     const text = kind === 'sus' && target ? `SUS: ${this.name(target)}` : EMOTES[kind];
-    this.bubbles.set(id, { text, until: now + 2200 });
+    this.bubbles.set(id, { text, kind, until: now + 2200 });
     this.sound('emote', actor, id === YOU ? 1 : 0.5);
     for (const b of this.witnesses(actor)) b.seeEmote(id, kind, target);
     return true;

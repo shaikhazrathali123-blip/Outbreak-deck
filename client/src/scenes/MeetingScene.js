@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT, UI } from '../ui/HUD.js';
+import { createPortrait } from '../side/SideCharacter.js';
 import sfx from '../audio/Sfx.js';
 
 const hex = (h) => Phaser.Display.Color.HexStringToColor(h).color;
@@ -75,8 +76,9 @@ export default class MeetingScene extends Phaser.Scene {
       const x = this.leftX + (i % cols) * (tileW + gap);
       const y = this.top + Math.floor(i / cols) * (tileH + gap);
       const g = this.add.graphics();
-      const dot = this.add.circle(x + 14, y + tileH / 2, 5, hex(p.color));
-      const name = this.add.text(x + 26, y + tileH / 2, p.id === s.youId ? 'P1 · YOU' : p.name, { fontFamily: FONT, fontSize: this.small ? '13px' : '15px', fontStyle: '700', color: '#ffffff' })
+      const ps = Math.min(tileH - 4, 30);
+      const dot = this.add.image(x + 6 + ps / 2, y + tileH / 2, createPortrait(this, p.color)).setDisplaySize(ps, ps);
+      const name = this.add.text(x + 12 + ps, y + tileH / 2, p.id === s.youId ? 'P1 · YOU' : p.name, { fontFamily: FONT, fontSize: this.small ? '13px' : '15px', fontStyle: '700', color: '#ffffff' })
         .setOrigin(0, 0.5).setLetterSpacing(1);
       const info = this.add.text(x + tileW - 10, y + tileH / 2, '', { fontFamily: FONT, fontSize: '11px', fontStyle: '700', color: '#3ee6d0' }).setOrigin(1, 0.5).setLetterSpacing(1);
       const zone = this.add.zone(x, y, tileW, tileH).setOrigin(0).setInteractive({ useHandCursor: true });

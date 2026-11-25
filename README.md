@@ -314,7 +314,7 @@ Everything is JavaScript.
 | Ads | **Google AdMob** (via Capacitor plugin) | Rewarded ads |
 | Hosting | **Railway**, **Render** or **Fly.io** | Cheap Node.js server hosting |
 | Version control | **Git + GitHub** | Save progress and undo mistakes |
-| Art | **Drawn in code** ("ink & neon") | All art is made at startup: no asset packs |
+| Art | **Drawn in code** ("ink & neon") | All art is made at startup: no asset packs (the hazmat survivor too) |
 
 ---
 
@@ -547,6 +547,15 @@ v2.6: hunger only runs while a zombie holds a Zombie card (it used to be 60s sin
 - [x] Bots fit parts, report bodies, go to the evac, cut the power, emote and bluff
 
 **Balance (sim, 200 matches, normal bots):** see CLAUDE.md for the latest table. Tune `lobbyRules`, `RULES.powerParts`, `partPickTime`, `evacTime`.
+
+### Look pass, stage 1: the hazmat survivor
+**Goal:** a character people remember, with no rule changes.
+- [x] Chunky hazmat survivor (`side/SideCharacter.js`): big round helmet with a wide glowing visor, short body and limbs, small backpack, the player's neon colour on the visor and suit trim
+- [x] Built from named layers (suit, trim, visor, helmetTop = hat slot, backpack), each drawn by a style id (only `'default'` so far) for later skins
+- [x] Frames: walk 8, idle 2, climb 4 (from behind), duel 2 (card held up at the table), down 1 (bodies on their back)
+- [x] The visor is the face: neutral, scared (running away, at a duel), angry (chasing), happy (HELLO / FOLLOW ME), suspicious (SUS!, waiting on a challenge), knocked out (bodies). Only states every player can be in, so a face never gives a role away
+- [x] Squash & stretch on landing from a ladder, grabbing one and turning; ghosts float with a see-through wobble
+- [x] Meeting tiles and result rows show a small helmet portrait instead of a dot
 
 ### Phase 4: Online Multiplayer
 **Time:** 3–4 weeks

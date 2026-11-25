@@ -42,7 +42,7 @@ await build({
       setup(b) {
         b.onResolve({ filter: /^phaser$/ }, () => ({ path: path.join(root, 'tools', 'sim', 'phaser-stub.js') }));
         b.onResolve({ filter: /SideCharacter\.js$/ }, () => ({ path: 'side-character', namespace: 'stub' }));
-        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export function createSurvivor() {}', loader: 'js' }));
+        b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export function createSurvivor() {}; export const FACE_ANCHORS = {}; export const SURVIVOR_SIZE = { width: 80, height: 92 }; export const faceTint = () => 0xffffff;', loader: 'js' }));
       },
     },
   ],

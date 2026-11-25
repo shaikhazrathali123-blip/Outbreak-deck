@@ -62,6 +62,7 @@ This file only gives a short summary and the current state of the code.
 - LED ceiling strips cast a soft wash + floor pool; neon objects reflect on the polished floor.
 - Sky and city skyline are parallax layers behind the building; rain and lightning outside.
 - Only your room is lit; rooms next to it (doorways/ladders) are dim; the rest are dark and hide whoever is inside.
+- Survivors: chunky hazmat suits with a big glowing visor that shows the face (see `side/SideCharacter.js`).
 
 ## Rules code (shared/, no Phaser: the Phase 4 server will reuse it)
 - `shared/cards.js`: seeded RNG, decks (four of each number 1–9 + Guns (2 bullets) + Cures, × copies for big
@@ -89,7 +90,12 @@ This file only gives a short summary and the current state of the code.
   EVAC_ROOM / EVAC_SPOT and PART_SPOTS (where the 4 parts can hide).
 - `side/inkArt.js`: `Ink` pen helpers, every furniture drawer, `drawFacility()` (building texture + the
   lamps, glows, signs, holograms, LEDs it needs), `drawSky()` and `drawSkyline()` (parallax layers).
-- `side/SideCharacter.js`: survivor sprite sheet (walk 8, idle 2, climb 4 frames), neon accent colour per player.
+- `side/SideCharacter.js`: the hazmat survivor sprite sheet (walk 8, idle 2, climb 4 from behind, duel 2, down 1), neon accent colour
+  per player on visor + trim. Named LAYERS (suit, trim, visor, helmetTop = hat slot, backpack), each a style id in `STYLES`
+  (only 'default' today; `createSurvivor(scene, key, accent, look)`). The visor face is a shared white texture `visor-faces`
+  (EXPRESSIONS: neutral, scared, angry, happy, suspicious, ko) tinted per player (`faceTint`) and laid over the visor using
+  `FACE_ANCHORS` (visor centre per frame). `createPortrait(scene, accent)`: front-view helmet for meeting tiles and result rows.
+  The sim stubs this file (`tools/simulate.js`): keep the stub's exports in step.
 - `side/textures.js`: glow, light wash, hologram, rain and film-grain textures.
 - `side/SideMap.js`: building map, small in the corner; M / tap for the big one with legend.
 - `scenes/BootScene.js` builds textures → `MenuScene` (title) → `SideScene` + `SideUIScene`.
@@ -114,7 +120,10 @@ This file only gives a short summary and the current state of the code.
   and frame). v3: parts / generator / evac / body reports / breaker errands (ERRANDS modes, `arrive` uses the station),
   `pickCall`, `noteCalled`, `seeEmote`, `speakUp` (emotes). DIFFICULTY: think speed, aggression, accept, card smarts, sight, hunt/lurk, sign noticing,
   zombieUse, gunNerve, cureNerve, voteNerve, callNerve, fakeDuel, task, sabotage, bluff.
-- `side/Actor.js`: a survivor (sprite, tag, walk/climb controller). `side/Navigator.js`: floor-to-floor routes via ladders.
+- `side/Actor.js`: a survivor (sprite, tag, walk/climb controller, `visor` face image synced every `postupdate` in `sync()`:
+  follows frame, flip, scale, rotation, alpha; `pose` 'duel' replaces idle, `down()` for bodies, `setExpression`, `squash` on
+  landing/grabbing a ladder/turning, `ghostly` wobble). Session `updateFaces` picks poses and faces only from states every
+  player can be in (chase, duel, challenge, emote; never hunger or role). Never call Math.random in Actor: the sim seeds it. `side/Navigator.js`: floor-to-floor routes via ladders.
 - `scenes/ResultScene.js`: winning team, your result, ★ top player, every player's role, stats and score; an ⓘ per row opens
   `showInfo`: score breakdown (`Match.scoreParts`: cards, time bonus, banked points by reason), duels, actions, how they ended;
   v3 RECAP button (`showRecap`, the Session timeline) and your XP / rank / badges (`recordMatch`, once per match).

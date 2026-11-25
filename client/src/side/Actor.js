@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER_SPEED } from '../../../shared/constants.js';
 import { WIDTH, ORIGIN_X, FLOORS, LADDERS } from './facility.js';
-import { createSurvivor } from './SideCharacter.js';
+import { createSurvivor, FACE_ANCHORS, SURVIVOR_SIZE, faceTint } from './SideCharacter.js';
 import { FONT } from '../ui/HUD.js';
 
 export const CLIMB_SPEED = 140;
@@ -12,7 +12,7 @@ export const LADDER_REACH = 26; // how close to a ladder you must be to grab it
  * walk/climb controller. Input is { x, y } in -1..1, like the joystick.
  */
 export default class Actor {
-  constructor(scene, { id, name, color, floor, x, isYou = false }) {
+  constructor(scene, { id, name, color, floor, x, isYou = false, ghost = false }) {
     this.scene = scene;
     this.id = id;
     this.name = name;
@@ -24,6 +24,18 @@ export default class Actor {
     this.sprite.play({ key: `${this.key}-idle`, startFrame: Phaser.Math.Between(0, 1) });
     this.state = { mode: 'walk', floor, ladder: null };
     this.offsetX = 0; // twitch animation offset
+    this.pose = null; // 'duel' replaces idle at a duel table; 'down' = a body on the floor
+    this.ghostly = ghost; // see-through ghost with a floating wobble
+    this.sq = { x: 1, y: 1 }; // squash & stretch (landing, turning)
+    // the visor is the face: a shared glowing-expression texture laid over it every frame
+    this.expression = 'neutral';
+    this.faceColor = faceTint(color);
+    this.visor = scene.add.image(x, 0, 'visor-faces', 'neutral').setTint(this.faceColor).setDepth((isYou ? 10 : 9) + 0.05);
+    scene.events.on('postupdate', this.sync, this);
+    this.sprite.once('destroy', () => {
+      scene.events.off('postupdate', this.sync, this);
+      this.visor.destroy();
+    });
     if (!isYou) {
       const style = { fontFamily: FONT, fontSize: '12px', fontStyle: '700', color, resolution: 3 };
       this.tag = scene.add.text(x, 0, name, style).setOrigin(0.5).setDepth(9);
@@ -59,11 +71,82 @@ export default class Actor {
   }
 
   anim(name) {
+    if (this.pose === 'down') return;
+    if (name === 'idle' && this.pose) name = this.pose;
     this.sprite.play(`${this.key}-${name}`, true);
   }
 
+  /** Turn left/right, with a quick squash when the facing changes. */
+  turn(left) {
+    if (left === this.sprite.flipX) return;
+    this.sprite.setFlipX(left);
+    this.squash(0.88, 1.08, 150);
+  }
+
   face(x) {
-    if (Math.abs(x - this.x) > 1) this.sprite.setFlipX(x < this.x);
+    if (Math.abs(x - this.x) > 1) this.turn(x < this.x);
+  }
+
+  /** Squash (or stretch) the sprite and spring back. */
+  squash(sx, sy, ms = 200) {
+    this.sqTween?.stop();
+    this.sq.x = sx;
+    this.sq.y = sy;
+    this.sqTween = this.scene.tweens.add({ targets: this.sq, x: 1, y: 1, duration: ms, ease: 'Back.out' });
+  }
+
+  /** 'duel' (at a duel table) or null. Seen by everyone, so it says nothing about roles. */
+  setPose(p) {
+    if (this.pose === p || this.pose === 'down') return;
+    this.pose = p;
+    if (this.state.mode === 'walk' && !this.sprite.anims.currentAnim?.key.endsWith('walk')) this.anim('idle');
+  }
+
+  /** A body on the floor. */
+  down() {
+    this.pose = 'down';
+    this.sprite.anims.stop();
+    this.sprite.setFlipX(false).setFrame('down0');
+    this.setExpression('ko');
+    this.faceColor = 0x8a909c;
+    this.visor.setTint(this.faceColor);
+    this.squash(1.15, 0.8, 300);
+  }
+
+  setExpression(name) {
+    if (this.expression === name || (this.pose === 'down' && name !== 'ko')) return;
+    this.expression = name;
+    this.visor.setFrame(name);
+  }
+
+  /** Every frame: squash, ghost wobble and the visor face following the body. */
+  sync() {
+    const s = this.sprite;
+    const f = this.visor;
+    if (!s.active) return;
+    if (this.ghostly) {
+      const t = this.scene.time.now;
+      s.setOrigin(0.5, 1 + (7 + Math.sin(t / 380) * 4) / SURVIVOR_SIZE.height);
+      s.setRotation(Math.sin(t / 610) * 0.06);
+    }
+    s.setScale(this.sq.x, this.sq.y);
+    const a = FACE_ANCHORS[s.frame.name];
+    if (!a || !a.show || !s.visible) {
+      f.setVisible(false);
+      return;
+    }
+    let dx = (a.x - SURVIVOR_SIZE.width * s.originX) * s.scaleX;
+    const dy = (a.y - SURVIVOR_SIZE.height * s.originY) * s.scaleY;
+    if (s.flipX) dx = -dx;
+    const cos = Math.cos(s.rotation);
+    const sin = Math.sin(s.rotation);
+    f.setPosition(s.x + dx * cos - dy * sin, s.y + dx * sin + dy * cos)
+      .setRotation(s.rotation + (s.flipX ? -a.rot : a.rot))
+      .setFlipX(s.flipX)
+      .setScale(s.scaleX, s.scaleY)
+      .setAlpha(s.alpha)
+      .setDepth(s.depth + 0.05)
+      .setVisible(true);
   }
 
   /** Walk / climb from input. Returns true if the actor moved. */
@@ -79,13 +162,14 @@ export default class Actor {
         st.ladder = ladder;
         s.x = ORIGIN_X + ladder.x;
         this.anim('climb');
+        this.squash(0.9, 1.1, 180);
         return true;
       }
       const vx = Math.abs(input.x) > 0.15 ? input.x : 0;
       s.x = Phaser.Math.Clamp(s.x + vx * speed * dt, ORIGIN_X + 18, ORIGIN_X + WIDTH - 18);
       s.y = FLOORS[st.floor].y;
       if (vx !== 0) {
-        s.setFlipX(vx < 0);
+        this.turn(vx < 0);
         this.anim('walk');
         s.anims.timeScale = 0.5 + 0.5 * Math.min(1, Math.abs(vx));
       } else {
@@ -111,6 +195,7 @@ export default class Actor {
       s.y = FLOORS[st.floor].y;
       s.anims.resume();
       this.anim('idle');
+      this.squash(1.18, 0.84, 260); // landing
     }
     return vy !== 0;
   }
@@ -124,7 +209,7 @@ export default class Actor {
       return true;
     }
     this.sprite.x += Math.sign(dx) * Math.min(Math.abs(dx), speed * dt);
-    this.sprite.setFlipX(dx < 0);
+    this.turn(dx < 0);
     this.anim('walk');
     return false;
   }

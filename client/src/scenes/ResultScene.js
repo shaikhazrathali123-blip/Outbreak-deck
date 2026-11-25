@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT, UI } from '../ui/HUD.js';
+import { createPortrait } from '../side/SideCharacter.js';
 import { drawSky, drawSkyline } from '../side/inkArt.js';
 import { recordMatch } from '../game/profile.js';
 
@@ -85,7 +86,7 @@ export default class ResultScene extends Phaser.Scene {
       const ry = top + 18 + (i % perCol) * rowH;
       const you = p.id === 'you';
       if (you) this.add.graphics().fillStyle(0xffffff, 0.06).fillRoundedRect(x0 - 6, ry - 2, colW - 20, rowH - 4, 6);
-      this.add.circle(x0 + 10, ry + rowH / 2 - 3, 4, hex(p.color));
+      this.add.image(x0 + 9, ry + rowH / 2 - 3, createPortrait(this, p.color)).setDisplaySize(20, 20);
       const style = { fontFamily: FONT, fontSize: small ? '13px' : '15px', fontStyle: '700', color: you ? '#ffffff' : '#c9ced8' };
       this.add.text(x0 + 24, ry + rowH / 2 - 3, `${p.score === best ? '★ ' : ''}${p.name}`, style).setOrigin(0, 0.5).setLetterSpacing(1);
       // roles of shot and voted-out players stay secret during the match; here they are revealed
@@ -202,8 +203,8 @@ export default class ResultScene extends Phaser.Scene {
       return t;
     };
     // header
-    box.add(this.add.circle(px + 24, py + 30, 6, hex(p.color)));
-    txt(px + 38, py + 30, `${p.score === best ? '★ ' : ''}${p.name}${p.id === 'you' && p.name !== 'YOU' ? '  (YOU)' : ''}`, 20, '#ffffff').setOrigin(0, 0.5).setLetterSpacing(2);
+    box.add(this.add.image(px + 26, py + 30, createPortrait(this, p.color)).setDisplaySize(30, 30));
+    txt(px + 46, py + 30, `${p.score === best ? '★ ' : ''}${p.name}${p.id === 'you' && p.name !== 'YOU' ? '  (YOU)' : ''}`, 20, '#ffffff').setOrigin(0, 0.5).setLetterSpacing(2);
     txt(px + pw - 20, py + 22, `${p.score} PTS`, 22, p.score === best ? '#ffd27a' : '#e9e4d6').setOrigin(1, 0.5);
     txt(px + pw - 20, py + 42, `#${rank} of ${players.length}`, 11, UI.dim).setOrigin(1, 0.5).setLetterSpacing(2);
     txt(px + 24, py + 56, team, 12, p.role === 'infected' ? '#3ee67a' : '#e9e4d6').setLetterSpacing(3);
