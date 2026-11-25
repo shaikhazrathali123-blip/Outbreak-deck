@@ -28,12 +28,13 @@ export default class SideScene extends Phaser.Scene {
   }
 
   create() {
-    this.art = drawFacility(this);
+    // desktops (fx=high) get the building at 2x: crisp edges at their camera zoom; phones 1x
+    this.art = drawFacility(this, fxLevel(this.game) === 'high' ? 2 : 1);
     drawSky(this);
     drawSkyline(this);
 
     this.createBackdrop();
-    this.add.image(0, 0, 'facility').setOrigin(0).setDepth(0);
+    for (const tile of this.art.tiles) this.add.image(tile.x, tile.y, tile.key).setOrigin(0).setScale(tile.scale).setDepth(0);
 
     this.rooms = ROOMS.map((r) => {
       const info = ROOM_INFO.find((i) => i.id === r.id);
@@ -64,7 +65,7 @@ export default class SideScene extends Phaser.Scene {
     );
     // your room gets a soft lift (behind the players, so they stand out as clean silhouettes)
     this.lifts = this.rooms.map((r) =>
-      this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, 0x9fb4d8, 1).setOrigin(0).setDepth(8.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD),
+      this.add.rectangle(r.rect.x, r.rect.y, r.rect.width, r.rect.height, hex(r.color), 1).setOrigin(0).setDepth(8.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD),
     );
     this.currentRoom = undefined;
     this.blackout = false;
@@ -468,7 +469,7 @@ export default class SideScene extends Phaser.Scene {
     const dark = this.blackout && !ghost && this.match.get(this.youId).role === 'human';
     const pitch = this.session.pitchBlack;
     const [lit, near, far] = ghost ? [0.12, 0.12, 0.2] : dark ? [0.8, 0.93, 0.95] : pitch ? [0.3, 0.75, 0.92] : [0, 0.55, 0.84];
-    const lift = ghost || dark || pitch ? 0 : 0.085; // only a normally lit room gets brighter
+    const lift = ghost || dark || pitch ? 0 : 0.05; // only a normally lit room gets a lift, in its own colour
     const neighbours = new Set();
     if (room) {
       for (const r of this.rooms) {

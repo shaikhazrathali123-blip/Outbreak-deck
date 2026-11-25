@@ -58,20 +58,29 @@ This file only gives a short summary and the current state of the code.
   outside dev builds.
 
 ## Look ("ink & neon", premium pass)
-- Clean bone-white linework (tiny wobble, faint hatching) on deep blue-black, soft gradients.
+- Clean bone-white linework (no wobble, very faint hatching) on deep blue-black, soft gradients; filled furniture gets
+  a top-light gradient + highlight (`Ink.rect`), bodies a lighter slate than the walls so objects read as solid.
+- Each room carries its colour: a tinted wall, a soft glow of the colour behind the middle, darker corners, bevelled
+  panels, a trim light, a wainscot with a coloured edge, a glossy floor face, a name plate (floor badge + name);
+  door jambs glow in the colours of the two rooms they join; ladders have hazard-striped hatches.
+- The building is drawn at 2x in 2048 px tiles on fx=high (`drawFacility(scene, res)` → `art.tiles`), 1x one texture on phones.
 - Neon only on things that glow; each room has an accent colour (skirting strip, label, banner).
 - LED ceiling strips cast a soft wash + floor pool; neon objects reflect on the polished floor.
 - Sky and city skyline are parallax layers behind the building; rain and lightning outside.
 - Only your room is lit; rooms next to it (doorways/ladders) are dim; the rest are dark and hide whoever is inside.
-- Survivors: chunky hazmat suits with a big glowing visor that shows the face (see `side/SideCharacter.js`).
-- Your room gets a soft ADD lift behind the players (`SideScene.lifts`) and every survivor a faint back-light (`Actor.halo`,
+- Survivors: hazmat suits (slate, 3-tone cel shading via `cel()`, light from the top-front), chunky boots and gloves,
+  reflective bands in the player's colour, twin air tanks + ribbed hose, a big helmet with collar ring, cheek filter and
+  head lamp, and a deep glass visor that glows in the player's colour and shows the face (see `side/SideCharacter.js`).
+- Landscape only: phones are played sideways; a phone held upright sees a "turn your phone sideways" screen
+  (`#rotate` in `client/index.html`, CSS only). Starting from the menu on a phone also asks for a landscape lock.
+- Your room gets a soft ADD lift in its own colour behind the players (`SideScene.lifts`) and every survivor a faint back-light (`Actor.halo`,
   the same for all), so they read as clean silhouettes. Neighbours stay dim (0.55), far rooms dark (0.84).
 - Less text (Stage 2): icons instead of hint lines (`ui/icons.js`), control hints only in your first match and only until you
   have done the action (`game/hints.js`), HUD text 14 px minimum (`MIN_TEXT`), room name big for 1.5s then it shrinks into the chip.
 
 ## Frame cost (phones)
-- Phones run Phaser's single-texture mobile pipeline: every texture switch is a draw call. So: one sheet for all survivors
-  (`createSurvivorRow`, 'survivors'), world labels and name tags from one label sheet (`side/labels.js`), same-texture lights
+- Phones run Phaser's single-texture mobile pipeline: every texture switch is a draw call. So: shared sheet pages for all
+  survivors (`createSurvivorRow`, 'survivors-N'), world labels and name tags from one label sheet (`side/labels.js`), same-texture lights
   at one depth (all 'glow' at 14, washes at 15), empty status texts hidden. A match frame went from ~165 to ~56 draw calls.
 - fx=low: no camera post pass (the vignette pass re-renders the whole view; a static 'vignette' image instead), no film grain,
   no bloom. fx=high (desktop): bloom + vignette + grain. Always: the sky, skyline and roof sign are skipped while the opaque
@@ -101,12 +110,13 @@ This file only gives a short summary and the current state of the code.
 - `side/facility.js`: the building: FLOORS (0 = basement, GROUND = 1), ROOMS (floor + x range), LADDERS, SPAWN,
   FURNITURE per room, and derived DUEL_TABLES / SUPPLY_BOXES / EMERGENCY_BUTTON; v3 stations GENERATOR, BREAKER, SECURITY_DESK,
   EVAC_ROOM / EVAC_SPOT and PART_SPOTS (where the 4 parts can hide).
-- `side/inkArt.js`: `Ink` pen helpers, every furniture drawer, `drawFacility()` (building texture + the
+- `side/inkArt.js`: `Ink` pen helpers, every furniture drawer, `drawFacility(scene, res)` (`paint()` draws it once per tile; building + the
   lamps, glows, signs, holograms, LEDs it needs), `drawSky()` and `drawSkyline()` (parallax layers).
-- `side/SideCharacter.js`: the hazmat survivor sprite sheet (walk 8, idle 2, climb 4 from behind, duel 2, down 1), neon accent colour
+- `side/SideCharacter.js`: the hazmat survivor sprite sheet (walk 8, idle 2, climb 6 from behind (no arms; the legs step up rung by rung; 'climbdown' = the same frames backwards), duel 2, down 1), neon accent colour
   per player on visor + trim. Named LAYERS (suit, trim, visor, helmetTop = hat slot, backpack), each a style id in `STYLES`
-  (only 'default' today). In a match every survivor is a row of the shared 'survivors' sheet (`createSurvivorRow(scene, accent, look)`,
-  keyed by colour + look); `createSurvivor(scene, key, accent, look, { res, only })` makes a standalone (e.g. 3x, idle-only for the
+  (only 'default' today). In a match every survivor is a row of a shared sheet page ('survivors-0', 8 per page;
+  `createSurvivorRow(scene, accent, look)`, keyed by colour + look), drawn at 2x (`survivorRes()`, 1x on GPUs under 2720 px)
+  and shown at half size so the detail stays crisp; `createSurvivor(scene, key, accent, look, { res, only })` makes a standalone (e.g. 3x, idle-only for the
   menu). The visor face is a shared white texture `visor-faces` (`facesKey(res)`)
   (EXPRESSIONS: neutral, scared, angry, happy, suspicious, ko) tinted per player (`faceTint`) and laid over the visor using
   `FACE_ANCHORS` (visor centre per frame). `createPortrait(scene, accent)`: front-view helmet for meeting tiles and result rows.
@@ -143,8 +153,12 @@ This file only gives a short summary and the current state of the code.
 - `scenes/ResultScene.js`: winning team, your result, ★ top player, every player's role, stats and score; an ⓘ per row opens
   `showInfo`: score breakdown (`Match.scoreParts`: cards, time bonus, banked points by reason), duels, actions, how they ended;
   v3 RECAP button (`showRecap`, the Session timeline) and your XP / rank / badges (`recordMatch`, once per match).
-- `scenes/MenuScene.js`: your survivor big in the centre (3x sheet, idling, glances around, hops when you change colour or tap it:
-  `openLocker()` is where Stage 4's Locker opens), options left/right of it (a grid under it on tall screens): bots (5–14),
+- `scenes/MenuScene.js`: a rainy rooftop at night. Your survivor (3x sheet) drops onto a glowing pad under a spotlight, in front of
+  a fan of the game's cards (`FAN`, ui/cardArt.js); a lineup of other survivors stands in the dark (silhouettes, only the visors
+  glow; one flickers green now and then: `guiltyEyes`); lightning (`lightning`) lights them up; neon-tube title one letter at a time
+  ("DECK" in your colour, a buzzing letter); fog, rain, mouse parallax; the button has a shine sweep. Your survivor idles,
+  glances, flinches at thunder, hops when you change colour or tap it (`openLocker()` is where Stage 4's Locker opens).
+  Options on two glass consoles, MATCH (left) and YOU (right, colour = tap a swatch) (one landscape layout): bots (5–14),
   difficulty, match length, v3 modifier and colour (unlocked by rank) (saved in localStorage); rank top-left, sound top-right.
 - `scenes/DuelScene.js`: card-table close-up (5s to pick, v3 CALL ZOMBIE / GUN / CURE buttons (Z/G/C) when you have a call left, flip, result lines; cancels cleanly if the duel became invalid).
 - `scenes/MeetingScene.js`: meeting overlay: player tiles (in quarantine, gagged, voted, out), chat log, quick-chat buttons, vote buttons, result.

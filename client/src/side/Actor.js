@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER_SPEED } from '../../../shared/constants.js';
 import { WIDTH, ORIGIN_X, FLOORS, LADDERS } from './facility.js';
-import { createSurvivorRow, survivorTexture, FACE_ANCHORS, SURVIVOR_SIZE, faceTint } from './SideCharacter.js';
+import { createSurvivorRow, survivorTexture, survivorRes, facesKey, FACE_ANCHORS, SURVIVOR_SIZE, faceTint } from './SideCharacter.js';
 import { label, relabel } from './labels.js';
 import { FONT } from '../ui/HUD.js';
 
@@ -21,7 +21,8 @@ export default class Actor {
     this.isYou = isYou;
     // one shared sheet for the whole cast, a row per colour (see createSurvivorRow)
     this.key = createSurvivorRow(scene, color);
-    this.sprite = scene.add.sprite(x, FLOORS[floor].y, ...survivorTexture(scene, this.key)).setOrigin(0.5, 1).setDepth(isYou ? 10 : 9);
+    this.res = survivorRes(); // the sheet is drawn at 2x: sprites show at half size
+    this.sprite = scene.add.sprite(x, FLOORS[floor].y, ...survivorTexture(scene, this.key)).setOrigin(0.5, 1).setDepth(isYou ? 10 : 9).setScale(1 / this.res);
     this.sprite.play({ key: `${this.key}-idle`, startFrame: Phaser.Math.Between(0, 1) });
     this.state = { mode: 'walk', floor, ladder: null };
     this.offsetX = 0; // twitch animation offset
@@ -31,7 +32,7 @@ export default class Actor {
     // the visor is the face: a shared glowing-expression texture laid over it every frame
     this.expression = 'neutral';
     this.faceColor = faceTint(color);
-    this.visor = scene.add.image(x, 0, 'visor-faces', 'neutral').setTint(this.faceColor).setDepth((isYou ? 10 : 9) + 0.05);
+    this.visor = scene.add.image(x, 0, facesKey(this.res), 'neutral').setTint(this.faceColor).setDepth((isYou ? 10 : 9) + 0.05);
     // a soft back-light, the same for everyone: lifts the dark suit off the wall (dark rooms still hide it)
     this.halo = scene.add.image(x, 0, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xcfe0ff).setAlpha(0.15).setScale(0.42, 0.5).setDepth(8.8);
     scene.events.on('postupdate', this.sync, this);
@@ -134,7 +135,7 @@ export default class Actor {
       s.setOrigin(0.5, 1 + (7 + Math.sin(t / 380) * 4) / SURVIVOR_SIZE.height);
       s.setRotation(Math.sin(t / 610) * 0.06);
     }
-    s.setScale(this.sq.x, this.sq.y);
+    s.setScale(this.sq.x / this.res, this.sq.y / this.res);
     const down = this.pose === 'down';
     this.halo.setVisible(s.visible && !this.ghostly).setPosition(s.x, s.y - (down ? 22 : 40)).setScale(down ? 0.55 : 0.42, down ? 0.3 : 0.5).setAlpha(0.15 * s.alpha);
     const a = FACE_ANCHORS[s.frame.name];
@@ -142,8 +143,9 @@ export default class Actor {
       f.setVisible(false);
       return;
     }
-    let dx = (a.x - SURVIVOR_SIZE.width * s.originX) * s.scaleX;
-    const dy = (a.y - SURVIVOR_SIZE.height * s.originY) * s.scaleY;
+    // anchors are in 1x frame pixels; the sprite's scale already includes 1 / res
+    let dx = (a.x - SURVIVOR_SIZE.width * s.originX) * s.scaleX * this.res;
+    const dy = (a.y - SURVIVOR_SIZE.height * s.originY) * s.scaleY * this.res;
     if (s.flipX) dx = -dx;
     const cos = Math.cos(s.rotation);
     const sin = Math.sin(s.rotation);
@@ -168,7 +170,7 @@ export default class Actor {
         st.mode = 'climb';
         st.ladder = ladder;
         s.x = ORIGIN_X + ladder.x;
-        this.anim('climb');
+        this.anim(wantsUp ? 'climb' : 'climbdown');
         this.squash(0.9, 1.1, 180);
         return true;
       }
@@ -191,6 +193,9 @@ export default class Actor {
     const bottom = FLOORS[l.lower].y;
     const vy = Math.abs(input.y) > 0.2 ? input.y : 0;
     s.y = Phaser.Math.Clamp(s.y + vy * CLIMB_SPEED * dt, top, bottom);
+    // hand over hand going up; the same motion backwards going down; hold still when stopped
+    if (vy < 0) this.anim('climb');
+    else if (vy > 0) this.anim('climbdown');
     if (vy !== 0) s.anims.resume();
     else s.anims.pause();
     const atTop = s.y <= top + 0.5;

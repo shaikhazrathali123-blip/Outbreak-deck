@@ -1,0 +1,1 @@
+Only the room you stand in is lit.

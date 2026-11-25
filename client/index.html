@@ -29,10 +29,47 @@
       #game canvas {
         display: block;
       }
+      /* The game is played sideways. A phone held upright gets this screen instead. */
+      #rotate {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        background: #05070a;
+        color: #e9e4d6;
+        font: 700 18px 'Rajdhani', 'Segoe UI', sans-serif;
+        letter-spacing: 3px;
+        text-align: center;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+      }
+      #rotate svg {
+        width: 96px;
+        height: 96px;
+        animation: turn 2.4s ease-in-out infinite;
+      }
+      @keyframes turn {
+        0%, 25% { transform: rotate(0deg); }
+        55%, 100% { transform: rotate(-90deg); }
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate {
+          display: flex;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate">
+      <svg viewBox="0 0 96 96" fill="none" stroke="#9ffff4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="30" y="10" width="36" height="76" rx="7" />
+        <line x1="44" y1="76" x2="52" y2="76" />
+      </svg>
+      <div>TURN YOUR PHONE SIDEWAYS</div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

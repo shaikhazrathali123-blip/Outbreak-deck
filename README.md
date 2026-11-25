@@ -552,10 +552,23 @@ v2.6: hunger only runs while a zombie holds a Zombie card (it used to be 60s sin
 **Goal:** a character people remember, with no rule changes.
 - [x] Chunky hazmat survivor (`side/SideCharacter.js`): big round helmet with a wide glowing visor, short body and limbs, small backpack, the player's neon colour on the visor and suit trim
 - [x] Built from named layers (suit, trim, visor, helmetTop = hat slot, backpack), each drawn by a style id (only `'default'` so far) for later skins
-- [x] Frames: walk 8, idle 2, climb 4 (from behind), duel 2 (card held up at the table), down 1 (bodies on their back)
+- [x] Frames: walk 8, idle 2, climb 6 (from behind, legs stepping up, played backwards going down), duel 2 (card held up at the table), down 1 (bodies on their back)
 - [x] The visor is the face: neutral, scared (running away, at a duel), angry (chasing), happy (HELLO / FOLLOW ME), suspicious (SUS!, waiting on a challenge), knocked out (bodies). Only states every player can be in, so a face never gives a role away
 - [x] Squash & stretch on landing from a ladder, grabbing one and turning; ghosts float with a see-through wobble
 - [x] Meeting tiles and result rows show a small helmet portrait instead of a dot
+
+### Look pass: survivor redesign + landscape only
+- [x] The survivor redrawn with more detail: pear-shaped suit with 3-tone shading, chunky boots, gloves with thumbs,
+  reflective bands, twin air tanks with a ribbed hose, collar ring, cheek filter, head lamp and a deep glass visor
+- [x] In-game sheet drawn at 2x and shown at half size, so the detail stays sharp when the camera zooms in
+- [x] Landscape only: no tall-screen layouts; a phone held upright shows "turn your phone sideways"
+- [x] Title screen: a rainy rooftop at night with a spotlight on your survivor, a fan of the game's cards behind them, a lineup
+  of survivors in the dark (only their visors glow, one sometimes flickers green), lightning, a neon-tube title, glass
+  option consoles with colour swatches
+- [x] The facility redrawn cleaner and more colourful: every room tinted and lit in its own colour, bevelled wall panels,
+  glossy floors, door frames glowing in both rooms' colours, solid shaded furniture, hazard-striped ladder hatches,
+  drawn at 2x on desktops for sharp edges
+- [x] Climbing from behind without arms (the legs step up rung by rung), played backwards going down
 
 ### Look pass, stage 2: brighter, cleaner, less text
 **Goal:** easy to read on a phone, still "ink & neon".
